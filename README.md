@@ -1,0 +1,2 @@
+# autotrader
+AUTOMAÇAO PARA OPERAÇAO DE TRADER
