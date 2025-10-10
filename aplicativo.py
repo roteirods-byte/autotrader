@@ -15,3 +15,4 @@ with st.form("email_form"):
     enviado = st.form_submit_button("ENVIAR/SALVAR")
     if enviado:
         st.success("OK — dados salvos (stub).")
+
