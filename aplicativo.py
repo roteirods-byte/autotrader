@@ -128,31 +128,54 @@ def secao_email():
             st.error(f"Não foi possível enviar o e-mail: {e}")
 
 
+# --- Seção MOEDAS (lê/escreve na Google Sheets) -----------------
+import streamlit as st
+from services.sheets import get_moedas, save_moedas
+
 def secao_moedas():
     st.subheader("Moedas / Pares / Filtros / Pesos")
 
-    # carrega uma vez por sessão
-    if "moedas_df" not in st.session_state:
-        st.session_state.moedas_df = pd.DataFrame(load_moedas())
+    if "moedas_lista" not in st.session_state:
+        st.session_state.moedas_lista = get_moedas()
 
-    edited = st.data_editor(
-        st.session_state.moedas_df,
-        key="moedas_editor",
-        num_rows="dynamic",
-        use_container_width=True,
+    col_inp, col_add = st.columns([4,1])
+    with col_inp:
+        novas = st.text_input("Nova:", placeholder="ex.: BTC, ETH, SOL ...").upper().strip()
+    with col_add:
+        if st.button("Adicionar"):
+            if novas:
+                # aceita separadas por vírgula ; ou espaço
+                raw = novas.replace(";", ",").replace("/", " ").replace("  ", " ")
+                adds = []
+                for x in raw.split(","):
+                    for y in x.split():
+                        y = y.strip().upper().replace("USDT", "")
+                        if y:
+                            adds.append(y)
+                st.session_state.moedas_lista = sorted(set(st.session_state.moedas_lista + adds))
+                st.success(f"Adicionado: {', '.join(adds)}")
+
+    remover = st.multiselect(
+        "Selecione para remover",
+        options=st.session_state.moedas_lista,
+        default=[]
     )
-    if edited is not None:
-        st.session_state.moedas_df = edited
-
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns([2,2,2])
     with c1:
-        if st.button("Salvar Moedas", key="bt_save_moedas"):
-            save_moedas(st.session_state.moedas_df.to_dict(orient="records"))
-            st.success("Moedas salvas no disco (/data).")
+        if st.button("Remover selecionadas"):
+            st.session_state.moedas_lista = [t for t in st.session_state.moedas_lista if t not in remover]
     with c2:
-        if st.button("Recarregar do disco", key="bt_reload_moedas"):
-            st.session_state.moedas_df = pd.DataFrame(load_moedas())
-            st.info("Recarregado do disco.")
+        if st.button("Salvar Moedas"):
+            save_moedas(st.session_state.moedas_lista)
+            st.success("✅ Salvo na planilha do Google.")
+    with c3:
+        if st.button("Recarregar da planilha"):
+            st.session_state.moedas_lista = get_moedas()
+            st.info("Recarregado.")
+
+    st.caption(f"Total: {len(st.session_state.moedas_lista)} pares (ordem alfabética)")
+    st.write(st.session_state.moedas_lista)
+
 
 
 def secao_entrada():
