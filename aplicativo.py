@@ -79,33 +79,53 @@ def header():
 # ----------------------------------------------------------------
 # Seções
 # ----------------------------------------------------------------
+# --- E-MAIL: formulário e envio real -------------------------
+import os, smtplib
+from email.message import EmailMessage
+import streamlit as st
+
+def _send_test_email(user: str, app_password: str, to_addr: str):
+    msg = EmailMessage()
+    msg["Subject"] = "Teste - Automação Cripto"
+    msg["From"] = user
+    msg["To"] = to_addr
+    msg.set_content("Seu envio de teste está funcionando. 👍")
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=20) as s:
+        s.ehlo()
+        s.starttls()
+        s.login(user, app_password)
+        s.send_message(msg)
+
 def secao_email():
-    with st.container(border=True):
-        st.subheader("Configurações de e-mail")
+    st.subheader("Configurações de e-mail")
 
-        st.text_input(
-            "Principal",
-            key="email_principal",
-            placeholder="seu-email@dominio.com",
-        )
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            st.text_input(
-                "Senha (app password)",
-                key="email_senha",
-                type="password",
-                placeholder="••••••••••••••••",
-            )
-        with c2:
-            st.text_input(
-                "Envio (opcional)",
-                key="email_envio",
-                placeholder="para@dominio.com",
-            )
+    # Carrega defaults de variáveis de ambiente (Render)
+    default_user = os.getenv("MAIL_USER", "")
+    default_to   = os.getenv("MAIL_TO", "")
+    # Nunca mostramos nem salvamos a senha em claro
+    default_pwd  = os.getenv("MAIL_APP_PASSWORD", "")
 
-        if st.button("ENVIAR / SALVAR", key="bt_email_salvar"):
-            # Aqui no futuro conectaremos envio de e-mail/teste com app password
-            st.success("Dados de e-mail armazenados na sessão.")
+    col1, col2, col3 = st.columns([2,2,2])
+    with col1:
+        user = st.text_input("Principal", value=default_user, placeholder="seu-email@dominio.com")
+    with col2:
+        pwd  = st.text_input("Senha (app password)", value=default_pwd, type="password")
+    with col3:
+        to   = st.text_input("Envio (opcional)", value=default_to, placeholder="para@dominio.com")
+
+    if st.button("ENVIAR / SALVAR", type="primary"):
+        if not user or not pwd:
+            st.error("Preencha o e-mail principal e a senha de app.")
+            return
+        if not to:
+            to = user  # se não preencher, envia para o próprio remetente
+        try:
+            _send_test_email(user, pwd, to)
+            st.success("✅ E-mail de teste enviado! Verifique sua caixa de entrada (e o Spam).")
+        except smtplib.SMTPAuthenticationError:
+            st.error("Falha ao autenticar no Gmail. Confira a senha de app e se a Verificação em 2 etapas está ativada.")
+        except Exception as e:
+            st.error(f"Não foi possível enviar o e-mail: {e}")
 
 
 def secao_moedas():
