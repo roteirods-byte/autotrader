@@ -102,7 +102,12 @@ with abas[1]:
     st.markdown("### Moedas / Pares / Filtros / Pesos")
     st.info("Edite os pares, filtros e pesos. Você pode adicionar e remover linhas livremente.", icon="⚙️")
 
-    edited = st.data_editor(
+   edited = st.data_editor(
+    st.session_state.moedas_df,
+    key="moedas_editor",
+    use_container_width=True,
+    num_rows="dynamic"
+)
         st.session_state.moedas_df,
         key="moedas_editor",
         use_container_width=True,
