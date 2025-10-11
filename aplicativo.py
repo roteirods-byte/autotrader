@@ -98,28 +98,23 @@ with abas[0]:
 # ------------------------------------------------------------
 # PAINEL: Moedas
 # ------------------------------------------------------------
-with abas[1]:
-    st.markdown("### Moedas / Pares / Filtros / Pesos")
-    st.info("Edite os pares, filtros e pesos. Você pode adicionar e remover linhas livremente.", icon="⚙️")
+# --- Moedas / Pares / Filtros / Pesos ---
+st.subheader("Moedas / Pares / Filtros / Pesos")
 
-   edited = st.data_editor(
+if "moedas_df" not in st.session_state:
+    st.session_state.moedas_df = pd.DataFrame(
+        [{"Par": "BTC/USDT", "Filtro": "Top10", "Peso": 1},
+         {"Par": "ETH/USDT", "Filtro": "Top10", "Peso": 1}]
+    )
+
+edited = st.data_editor(
     st.session_state.moedas_df,
     key="moedas_editor",
     use_container_width=True,
     num_rows="dynamic"
 )
-        st.session_state.moedas_df,
-        key="moedas_editor",
-        use_container_width=True,
-        num_rows="dynamic",
-        columns={
-            "Par": {"width": 180},
-            "Filtro": {"width": 120},
-            "Peso": {"width": 80}
-        }
-    )
-    # salva a edição no estado
-    st.session_state.moedas_df = edited
+st.session_state.moedas_df = edited
+
 
 # ------------------------------------------------------------
 # PAINEL: Entrada
