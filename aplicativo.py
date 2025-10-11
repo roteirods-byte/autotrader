@@ -1,225 +1,251 @@
-# -*- coding: utf-8 -*-
-import streamlit as st
+# aplicativo.py
+# --- Automação Cripto — layout aprovado -------------------------
+# Este arquivo concentra a UI principal (E-mail, Moedas, Entrada, Saída, Estado).
+# Persistência das Moedas: usa /data (Render). Se existir services/persist.py, ele é usado;
+# caso contrário, caímos num fallback local que salva em /data/moedas.json.
+
+from __future__ import annotations
+import os, json
+from typing import List, Dict
+
 import pandas as pd
+import streamlit as st
 
-# ------------------------------------------------------------
-# Configuração base da página
-# ------------------------------------------------------------
-st.set_page_config(
-    page_title="AUTOMAÇÃO CRIPTO",
-    page_icon="🧠",
-    layout="wide"
-)
+# ----------------------------------------------------------------
+# Persistência (usa services/persist.py se existir; senão, fallback)
+# ----------------------------------------------------------------
+try:
+    from services.persist import load_moedas, save_moedas  # type: ignore
+except Exception:
+    BASE = os.getenv("DB_PATH", "/data")
+    F_MOEDAS = os.path.join(BASE, "moedas.json")
 
-# ------------------------------------------------------------
-# Estado inicial (para não perder valores ao navegar nas abas)
-# ------------------------------------------------------------
-def init_state():
-    ss = st.session_state
-
-    # E-mail
-    ss.setdefault("email_principal", "")
-    ss.setdefault("email_senha_app", "")
-    ss.setdefault("email_envio", "")
-
-    # Moedas
-    ss.setdefault("moedas_df", pd.DataFrame([
+    DEFAULT_MOEDAS = [
         {"Par": "BTC/USDT", "Filtro": "Top10", "Peso": 1},
         {"Par": "ETH/USDT", "Filtro": "Top10", "Peso": 1},
-    ]))
+    ]
 
-    # Entrada
-    ss.setdefault("in_risco", 1.00)
-    ss.setdefault("in_tipo_sinal", "Cruzamento")
-    ss.setdefault("in_spread", 0.20)
-    ss.setdefault("in_alavancagem", 1)
-    ss.setdefault("in_fonte", "")
-    ss.setdefault("in_slippage", 0.10)
+    def load_moedas() -> List[Dict]:
+        try:
+            with open(F_MOEDAS, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return DEFAULT_MOEDAS.copy()
 
-    # Saída
-    ss.setdefault("out_alvo1", 1.00)
-    ss.setdefault("out_stop", 1.00)
-    ss.setdefault("out_modo_direita", "Desligado")
-    ss.setdefault("out_direita_pct", 0.50)
-    ss.setdefault("out_alvo2", 2.00)
-    ss.setdefault("out_breakeven", False)
+    def save_moedas(rows: List[Dict]) -> None:
+        os.makedirs(BASE, exist_ok=True)
+        with open(F_MOEDAS, "w", encoding="utf-8") as f:
+            json.dump(rows, f, ensure_ascii=False, indent=2)
 
-    # Estado/monitor
-    ss.setdefault("montr_abertas", 0)
-    ss.setdefault("montr_pendentes", 0)
-    ss.setdefault("montr_erros", 0)
-    ss.setdefault("montr_lucro_hoje", 0.0)
-    ss.setdefault("montr_saldo", None)
-    ss.setdefault("montr_exposicao", None)
 
-init_state()
+# ----------------------------------------------------------------
+# Config da página
+# ----------------------------------------------------------------
+st.set_page_config(page_title="Automação Cripto", layout="wide")
 
-# ------------------------------------------------------------
-# Cabeçalho
-# ------------------------------------------------------------
-st.markdown("## 🧠 AUTOMAÇÃO CRIPTO")
-st.caption("Interface do projeto — layout aprovado")
-st.markdown("---")
+# ----------------------------------------------------------------
+# Helpers de UI
+# ----------------------------------------------------------------
+def stepper_percent(
+    label: str,
+    key: str,
+    step: float = 0.01,
+    min_value: float = 0.0,
+    max_value: float | None = None,
+    fmt: str = "%.2f",
+):
+    """Número com botões - / + seguindo o visual aprovado."""
+    c1, c2, c3 = st.columns([8, 1, 1])
+    val = c1.number_input(
+        label, key=key, step=step, min_value=min_value, max_value=max_value, format=fmt
+    )
+    if c2.button("−", key=f"{key}_menos"):
+        st.session_state[key] = max(min_value, round(st.session_state[key] - step, 6))
+        st.rerun()
+    if c3.button("+", key=f"{key}_mais"):
+        new_val = round(st.session_state[key] + step, 6)
+        if max_value is None or new_val <= max_value:
+            st.session_state[key] = new_val
+        st.rerun()
+    return st.session_state[key]
 
-# ------------------------------------------------------------
-# Abas principais
-# ------------------------------------------------------------
-abas = st.tabs(["E-mail", "Moedas", "Entrada", "Saída", "Estado"])
 
-# ------------------------------------------------------------
-# PAINEL: E-mail
-# ------------------------------------------------------------
-with abas[0]:
-    st.markdown("### Configurações de e-mail")
+def header():
+    st.markdown("## 🧠 AUTOMAÇÃO CRIPTO")
+    st.caption("Interface do projeto — layout aprovado")
+    st.divider()
+
+
+# ----------------------------------------------------------------
+# Seções
+# ----------------------------------------------------------------
+def secao_email():
     with st.container(border=True):
-        c1, c2, c3 = st.columns([1.1, 1, 1])
+        st.subheader("Configurações de e-mail")
+
+        st.text_input(
+            "Principal",
+            key="email_principal",
+            placeholder="seu-email@dominio.com",
+        )
+        c1, c2 = st.columns([1, 1])
         with c1:
             st.text_input(
-                "Principal",
-                key="email_principal",
-                placeholder="seu-email@dominio.com",
+                "Senha (app password)",
+                key="email_senha",
+                type="password",
+                placeholder="••••••••••••••••",
             )
         with c2:
-            st.text_input(
-                "Senha (app password)",
-                key="email_senha_app",
-                type="password",
-                placeholder="****************",
-            )
-        with c3:
             st.text_input(
                 "Envio (opcional)",
                 key="email_envio",
                 placeholder="para@dominio.com",
             )
 
-        st.button("ENVIAR / SALVAR", key="btn_email_salvar")
+        if st.button("ENVIAR / SALVAR", key="bt_email_salvar"):
+            # Aqui no futuro conectaremos envio de e-mail/teste com app password
+            st.success("Dados de e-mail armazenados na sessão.")
 
-# ------------------------------------------------------------
-# PAINEL: Moedas
-# ------------------------------------------------------------
-# --- Moedas / Pares / Filtros / Pesos ---
-st.subheader("Moedas / Pares / Filtros / Pesos")
 
-if "moedas_df" not in st.session_state:
-    st.session_state.moedas_df = pd.DataFrame(
-        [{"Par": "BTC/USDT", "Filtro": "Top10", "Peso": 1},
-         {"Par": "ETH/USDT", "Filtro": "Top10", "Peso": 1}]
+def secao_moedas():
+    st.subheader("Moedas / Pares / Filtros / Pesos")
+
+    # carrega uma vez por sessão
+    if "moedas_df" not in st.session_state:
+        st.session_state.moedas_df = pd.DataFrame(load_moedas())
+
+    edited = st.data_editor(
+        st.session_state.moedas_df,
+        key="moedas_editor",
+        num_rows="dynamic",
+        use_container_width=True,
+    )
+    if edited is not None:
+        st.session_state.moedas_df = edited
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Salvar Moedas", key="bt_save_moedas"):
+            save_moedas(st.session_state.moedas_df.to_dict(orient="records"))
+            st.success("Moedas salvas no disco (/data).")
+    with c2:
+        if st.button("Recarregar do disco", key="bt_reload_moedas"):
+            st.session_state.moedas_df = pd.DataFrame(load_moedas())
+            st.info("Recarregado do disco.")
+
+
+def secao_entrada():
+    st.subheader("Regras de Entrada")
+
+    # Linha 1
+    c1, c2, c3 = st.columns([1, 1, 1])
+    with c1:
+        stepper_percent("Risco por trade (%)", key="in_risco_pct", step=0.01, min_value=0.0)
+    with c2:
+        st.selectbox(
+            "Tipo de sinal",
+            ["Cruzamento", "Rompimento", "RSI", "MACD"],
+            key="in_tipo_sinal",
+        )
+    with c3:
+        stepper_percent("Spread máximo (%)", key="in_spread_max", step=0.01, min_value=0.0)
+
+    # Linha 2
+    c4, c5 = st.columns([1, 2])
+    with c4:
+        stepper_percent("Alavancagem", key="in_alavancagem", step=1.0, min_value=1.0, fmt="%.0f")
+    with c5:
+        st.text_input("Fonte do sinal (ex.: binance, tradingview)", key="in_fonte_sinal")
+
+    # Linha 3
+    stepper_percent("Derrapagem máx. (%)", key="in_derrapagem", step=0.01, min_value=0.0)
+
+    st.info("Espaço reservado para calcular/validar entradas.")
+
+
+def secao_saida():
+    st.subheader("Gestão de Saída")
+
+    # Linha 1
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+    with c1:
+        stepper_percent("Alvo 1 (%)", key="out_alvo1", step=0.01, min_value=0.0)
+    with c2:
+        stepper_percent("Parada (%)", key="out_stop", step=0.01, min_value=0.0)
+    with c3:
+        st.selectbox(
+            "Modo à direita",
+            ["Desligado", "Parcial", "Agressivo"],
+            key="out_mode_trailing",
+        )
+    with c4:
+        stepper_percent("À direita (%)", key="out_trailing_pct", step=0.01, min_value=0.0)
+
+    # Linha 2
+    c5, _ = st.columns([1, 3])
+    with c5:
+        st.checkbox("Break-even automático", key="out_break_even")
+
+    stepper_percent("Alvo 2 (%)", key="out_alvo2", step=0.01, min_value=0.0)
+
+    st.info("Aqui depois conectamos a lógica de execução/fechamento.")
+
+
+def secao_estado():
+    st.subheader("Estado / Monitor")
+
+    col = st.columns(6)
+    col[0].metric("Negociações abertas", 0)
+    col[1].metric("Sinais pendentes", 0)
+    col[2].metric("Erros", 0)
+    col[3].metric("Lucro Hoje", "—")
+    col[4].metric("Saldo", "—")
+    col[5].metric("Exposição", "—")
+
+    st.info("Logs e status em tempo real virão aqui.")
+
+
+# ----------------------------------------------------------------
+# App
+# ----------------------------------------------------------------
+def main():
+    # Valores padrão de sessão (evita None/erros)
+    st.session_state.setdefault("in_risco_pct", 1.00)
+    st.session_state.setdefault("in_spread_max", 0.20)
+    st.session_state.setdefault("in_alavancagem", 1.0)
+    st.session_state.setdefault("in_fonte_sinal", "")
+    st.session_state.setdefault("in_derrapagem", 0.10)
+    st.session_state.setdefault("in_tipo_sinal", "Cruzamento")
+
+    st.session_state.setdefault("out_alvo1", 1.00)
+    st.session_state.setdefault("out_alvo2", 2.00)
+    st.session_state.setdefault("out_stop", 1.00)
+    st.session_state.setdefault("out_mode_trailing", "Desligado")
+    st.session_state.setdefault("out_trailing_pct", 0.50)
+    st.session_state.setdefault("out_break_even", False)
+
+    st.session_state.setdefault("email_principal", "")
+    st.session_state.setdefault("email_senha", "")
+    st.session_state.setdefault("email_envio", "")
+
+    header()
+
+    tab_email, tab_moedas, tab_entrada, tab_saida, tab_estado = st.tabs(
+        ["E-mail", "Moedas", "Entrada", "Saída", "Estado"]
     )
 
-edited = st.data_editor(
-    st.session_state.moedas_df,
-    key="moedas_editor",
-    use_container_width=True,
-    num_rows="dynamic"
-)
-st.session_state.moedas_df = edited
+    with tab_email:
+        secao_email()
+    with tab_moedas:
+        secao_moedas()
+    with tab_entrada:
+        secao_entrada()
+    with tab_saida:
+        secao_saida()
+    with tab_estado:
+        secao_estado()
 
 
-# ------------------------------------------------------------
-# PAINEL: Entrada
-# ------------------------------------------------------------
-with abas[2]:
-    st.markdown("### Regras de Entrada")
-    with st.container(border=True):
-        r1c1, r1c2, r1c3 = st.columns([1, 1, 1])
-        with r1c1:
-            st.number_input(
-                "Risco por trade (%)",
-                min_value=0.0, max_value=100.0, step=0.05,
-                key="in_risco", format="%.2f"
-            )
-        with r1c2:
-            st.selectbox(
-                "Tipo de sinal",
-                ["Cruzamento", "Rompimento", "RSI", "MACD"],
-                key="in_tipo_sinal"
-            )
-        with r1c3:
-            st.number_input(
-                "Spread máximo (%)",
-                min_value=0.0, max_value=5.0, step=0.01,
-                key="in_spread", format="%.2f"
-            )
-
-        r2c1, r2c2 = st.columns([1, 2])
-        with r2c1:
-            st.number_input(
-                "Alavancagem",
-                min_value=1, max_value=125, step=1,
-                key="in_alavancagem"
-            )
-        with r2c2:
-            st.text_input(
-                "Fonte do sinal (ex.: binance, tradingview)",
-                key="in_fonte",
-                placeholder=""
-            )
-
-        st.number_input(
-            "Derrapagem máx. (%)",
-            min_value=0.0, max_value=5.0, step=0.01,
-            key="in_slippage", format="%.2f"
-        )
-
-    st.success("Espaço reservado para calcular/validar entradas.", icon="📈")
-
-# ------------------------------------------------------------
-# PAINEL: Saída
-# ------------------------------------------------------------
-with abas[3]:
-    st.markdown("### Gestão de Saída")
-    with st.container(border=True):
-        s1c1, s1c2, s1c3, s1c4 = st.columns([1, 1, 1, 1])
-        with s1c1:
-            st.number_input(
-                "Alvo 1 (%)",
-                min_value=0.0, max_value=100.0, step=0.05,
-                key="out_alvo1", format="%.2f"
-            )
-        with s1c2:
-            st.number_input(
-                "Parada (%)",
-                min_value=0.0, max_value=100.0, step=0.05,
-                key="out_stop", format="%.2f"
-            )
-        with s1c3:
-            st.selectbox(
-                "Modo à direita",
-                ["Desligado", "ATR", "Trailing", "Parcial"],
-                key="out_modo_direita"
-            )
-        with s1c4:
-            st.number_input(
-                "À direita (%)",
-                min_value=0.0, max_value=100.0, step=0.05,
-                key="out_direita_pct", format="%.2f"
-            )
-
-        s2c1, s2c2 = st.columns([1, 1])
-        with s2c1:
-            st.number_input(
-                "Alvo 2 (%)",
-                min_value=0.0, max_value=100.0, step=0.05,
-                key="out_alvo2", format="%.2f"
-            )
-        with s2c2:
-            st.checkbox("Break-even automático", key="out_breakeven")
-
-    st.info("Aqui depois conectamos a lógica de execução/fechamento.", icon="🔌")
-
-# ------------------------------------------------------------
-# PAINEL: Estado (monitor)
-# ------------------------------------------------------------
-with abas[4]:
-    st.markdown("### Estado / Monitor")
-    with st.container(border=True):
-        m1, m2, m3, m4, m5, m6 = st.columns(6)
-        m1.metric("Negociações abertas", st.session_state.montr_abertas)
-        m2.metric("Sinais pendentes", st.session_state.montr_pendentes)
-        m3.metric("Erros", st.session_state.montr_erros)
-        m4.metric("Lucro Hoje", f"{st.session_state.montr_lucro_hoje:.2f}%")
-        m5.metric("Saldo", "-" if st.session_state.montr_saldo is None else st.session_state.montr_saldo)
-        m6.metric("Exposição", "-" if st.session_state.montr_exposicao is None else st.session_state.montr_exposicao)
-
-    st.caption("Logs e status em tempo real virão aqui.")
+if __name__ == "__main__":
+    main()
