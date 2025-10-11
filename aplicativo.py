@@ -1,178 +1,194 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 
-# ---------- Config da página ----------
+# ---- CONFIG DA PÁGINA -------------------------------------------------------
 st.set_page_config(
     page_title="Automação Cripto",
     page_icon="🧠",
     layout="wide",
 )
 
-# ---------- Estilos finos ----------
-CUSTOM_CSS = """
+# ---- TEMA / CSS LEVE --------------------------------------------------------
+# (Mantém o dark; ajusta contrastes, cartões e botões)
+CSS = """
 <style>
-/* tira o rádio lateral do esqueleto antigo, caso ainda exista em cache */
-section[data-testid="stSidebar"] div:has(> label:contains("Painéis")) { display:none; }
+/* Fundo e textos */
+.stApp { background: #0b1220 !important; }
+h1, h2, h3, h4, h5, h6, p, span, label, div { color: #e6f0ff; }
 
-/* cabeçalho */
-.hdr h1 {
-  font-weight: 800;
-  letter-spacing: .5px;
-  margin-bottom: .25rem;
-}
-.hdr .sub {
-  color: #93b3ff;
-  font-size: 0.9rem;
-}
-
-/* cartões de métrica */
+/* Cartões (caixas de seção) */
+.block-container { padding-top: 1.5rem; }
 .card {
-  background: rgba(255,255,255,0.04);
+  background: #111a2b;
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 16px;
-  padding: 1rem 1.25rem;
+  padding: 18px 18px 8px 18px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
 }
-.card h4 { margin: 0 0 .35rem 0; font-weight: 700; }
-.card .muted { color: #9db4ff; font-size: .85rem; }
 
-/* Tabela */
-tbody tr:hover { background: rgba(255,255,255,0.03) !important; }
+/* Títulos de seção */
+.section-title {
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: .2px;
+  color: #9ad1ff;
+  margin-bottom: .5rem;
+}
 
 /* botões */
 .stButton>button {
   border-radius: 10px;
-  padding: .6rem 1rem;
-  font-weight: 700;
+  padding: 0.55rem 1rem;
+  background: #223dee;
+  border: 1px solid #2d4bff;
 }
+.stButton>button:hover { filter: brightness(1.05); }
 
 /* inputs */
-.stNumberInput input, .stTextInput input {
-  border-radius: 10px;
+.stTextInput>div>div>input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
+  background: #0e1830 !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  color: #e6f0ff !important;
 }
 
-/* tabs no topo mais visíveis */
-.stTabs [data-baseweb="tab"] {
-  font-weight: 700;
+/* tabela editável */
+[data-testid="stDataEditor"] {
+  background: #101a2c !important;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.06);
 }
+
+/* “chips” pequenos de métrica */
+.kpi {
+  background:#101a2c;
+  border:1px solid rgba(255,255,255,0.06);
+  padding:.9rem 1rem;
+  border-radius:14px;
+}
+.kpi h3 { margin:0; font-size: .95rem; color:#9ad1ff; }
+.kpi .big { font-size: 1.4rem; font-weight: 700; margin-top:.25rem; }
 </style>
 """
-st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+st.markdown(CSS, unsafe_allow_html=True)
 
-# ---------- Estado em memória ----------
-if "moedas_df" not in st.session_state:
-    st.session_state.moedas_df = pd.DataFrame(
-        [
-            {"Par": "BTC/USDT", "Filtro": "Top10", "Peso": 1.0},
-            {"Par": "ETH/USDT", "Filtro": "Top10", "Peso": 1.0},
-        ]
+# ---- CABEÇALHO --------------------------------------------------------------
+st.markdown("### 🧠 **AUTOMAÇÃO CRIPTO**")
+st.caption("Interface do projeto — layout aprovado")
+
+# ---- SIDEBAR (PAINÉIS) ------------------------------------------------------
+with st.sidebar:
+    st.markdown("#### Painéis")
+    painel = st.radio(
+        " ",
+        options=["E-mail", "Moedas", "Entrada", "Saída", "Estado"],
+        index=0,
+        label_visibility="collapsed",
     )
 
-# ---------- Cabeçalho ----------
-col1, col2 = st.columns([1, 4])
-with col1:
-    st.markdown("### 🧠")
-with col2:
-    st.markdown('<div class="hdr"><h1>AUTOMAÇÃO CRIPTO</h1>'
-                '<div class="sub">Interface do projeto — layout aprovado</div></div>',
-                unsafe_allow_html=True)
-
-st.divider()
-
-# ---------- Abas principais ----------
-tab_email, tab_moedas, tab_entrada, tab_saida, tab_estado = st.tabs(
-    ["📧 E-mail", "💱 Moedas", "🎯 Entrada", "🏁 Saída", "📊 Estado"]
-)
-
-# --- E-MAIL ---
-with tab_email:
-    st.write("Configurações de e-mail (usaremos App Password).")
-    c1, c2, c3 = st.columns([1.2, 1, 1])
-    with c1:
+# ---- E-MAIL -----------------------------------------------------------------
+if painel == "E-mail":
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📧 Configurações de e-mail (usaremos App Password)</div>', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1.4, 1, 1.2])
+    with col1:
         email_principal = st.text_input("Principal", placeholder="seu-email@dominio.com")
-    with c2:
+    with col2:
         senha_app = st.text_input("Senha (app password)", type="password")
-    with c3:
-        destino = st.text_input("Envio (opcional)", placeholder="para@dominio.com")
+    with col3:
+        email_envio = st.text_input("Envio (opcional)", placeholder="para@dominio.com")
+    st.button("ENVIAR / SALVAR")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    if st.button("ENVIAR / SALVAR", type="primary"):
-        st.session_state.email_cfg = {
-            "principal": email_principal.strip(),
-            "senha": senha_app.strip(),
-            "envio": destino.strip(),
-            "atualizado_em": datetime.utcnow().isoformat()
+# ---- MOEDAS -----------------------------------------------------------------
+elif painel == "Moedas":
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">💱 Moedas / Pares / Filtros / Pesos</div>', unsafe_allow_html=True)
+
+    # Tabela editável (exemplo; depois ligamos à sua fonte)
+    df = pd.DataFrame(
+        {
+            "Par": ["BTC/USDT", "ETH/USDT"],
+            "Filtro": ["Top10", "Top10"],
+            "Peso": [1, 1],
         }
-        st.success("Configurações salvas (em memória por enquanto).")
-
-# --- MOEDAS ---
-with tab_moedas:
-    st.write("Defina pares, filtros e pesos.")
-    st.markdown("> Você pode editar os valores diretamente na tabela abaixo.")
-
+    )
     edited = st.data_editor(
-        st.session_state.moedas_df,
+        df,
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
         column_config={
-            "Par": st.column_config.TextColumn("Par", help="Ex.: BTC/USDT"),
-            "Filtro": st.column_config.TextColumn("Filtro", help="Ex.: Top10, Vol, etc."),
-            "Peso": st.column_config.NumberColumn("Peso", min_value=0.0, max_value=10.0, step=0.1),
+            "Par": st.column_config.TextColumn(width="medium"),
+            "Filtro": st.column_config.TextColumn(width="small"),
+            "Peso": st.column_config.NumberColumn(min_value=0, step=1, width="small"),
         },
     )
-    colA, colB = st.columns([1, 3])
-    with colA:
-        if st.button("Salvar pares/pesos", use_container_width=True):
-            st.session_state.moedas_df = edited.copy()
-            st.success("Moedas salvas (em memória).")
-    with colB:
-        st.info("Integração: depois conectamos isto à fonte real (planilha/DB).")
+    st.caption("Você pode adicionar/editar linhas. Depois conectamos isso ao armazenamento real.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- ENTRADA ---
-with tab_entrada:
-    st.write("Regras de entrada")
-    a, b, c = st.columns(3)
-    with a:
-        risco = st.number_input("Risco por trade (%)", min_value=0.0, max_value=100.0, value=1.0, step=0.1)
-        alav = st.number_input("Alavancagem", min_value=1, max_value=125, value=1, step=1)
-    with b:
+# ---- ENTRADA ----------------------------------------------------------------
+elif painel == "Entrada":
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📥 Regras de Entrada</div>', unsafe_allow_html=True)
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        risco = st.number_input("Risco por trade (%)", value=1.00, step=0.05, min_value=0.0)
+    with c2:
         tipo_sinal = st.selectbox("Tipo de sinal", ["Cruzamento", "Rompimento", "RSI", "MACD"])
+    with c3:
+        spread_max = st.number_input("Spread máximo (%)", value=0.20, step=0.05, min_value=0.0)
+    with c4:
+        derrapagem = st.number_input("Derrapagem máx. (%)", value=0.10, step=0.05, min_value=0.0)
+
+    c5, c6 = st.columns(2)
+    with c5:
+        alav = st.number_input("Alavancagem", value=1, step=1, min_value=1)
+    with c6:
         fonte = st.text_input("Fonte do sinal (ex.: binance, tradingview)")
-    with c:
-        spread = st.number_input("Spread máximo (%)", min_value=0.0, max_value=5.0, value=0.2, step=0.05)
-        derrap = st.number_input("Derrapagem máx. (%)", min_value=0.0, max_value=5.0, value=0.1, step=0.05)
 
-    st.markdown('<div class="card"><h4>Validação</h4>'
-                '<div class="muted">Espaço reservado para cálculos/validações de entrada.</div></div>',
-                unsafe_allow_html=True)
+    st.success("Espaço reservado para calcular/validar entradas.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- SAÍDA ---
-with tab_saida:
-    st.write("Gestão de saída")
-    a, b, c = st.columns(3)
-    with a:
-        alvo1 = st.number_input("Alvo 1 (%)", min_value=0.0, max_value=100.0, value=1.0, step=0.1)
-        alvo2 = st.number_input("Alvo 2 (%)", min_value=0.0, max_value=100.0, value=2.0, step=0.1)
-    with b:
-        stop = st.number_input("Parada (%)", min_value=0.0, max_value=100.0, value=1.0, step=0.1)
-        be = st.checkbox("Break-even automático", value=False)
-    with c:
-        modo = st.selectbox("Modo à direita", ["Desligado", "Trailing stop", "Parcial"])
-        direita = st.number_input("À direita (%)", min_value=0.0, max_value=100.0, value=0.5, step=0.1)
+# ---- SAÍDA ------------------------------------------------------------------
+elif painel == "Saída":
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📤 Gestão de Saída</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="card"><h4>Execução</h4>'
-                '<div class="muted">Aqui conectaremos a lógica real de fechamento quando a automação estiver plugada.</div></div>',
-                unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        alvo1 = st.number_input("Alvo 1 (%)", value=1.00, step=0.10, min_value=0.0)
+    with c2:
+        parada = st.number_input("Parada (%)", value=1.00, step=0.10, min_value=0.0)
+    with c3:
+        modo = st.selectbox("Modo à direita", ["Desligado", "Parcial", "Total"])
+    with c4:
+        a_direita = st.number_input("À direita (%)", value=0.50, step=0.10, min_value=0.0)
 
-# --- ESTADO ---
-with tab_estado:
-    st.write("Monitor")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Negociações abertas", 0)
-    m2.metric("Sinais pendentes", 0)
-    m3.metric("Exposição", "—")
-    m4.metric("Lucro Hoje", "—")
+    c5, c6 = st.columns(2)
+    with c5:
+        alvo2 = st.number_input("Alvo 2 (%)", value=2.00, step=0.10, min_value=0.0)
+    with c6:
+        breakeven = st.checkbox("Break-even automático")
 
-    st.markdown('<div class="card"><h4>Logs</h4>'
-                '<div class="muted">Logs e status em tempo real virão aqui.</div></div>',
-                unsafe_allow_html=True)
+    st.info("Aqui depois conectamos a lógica de execução/fechamento.")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ---- ESTADO -----------------------------------------------------------------
+elif painel == "Estado":
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📊 Estado / Monitor</div>', unsafe_allow_html=True)
+
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.markdown('<div class="kpi"><h3>Negociações abertas</h3><div class="big">0</div></div>', unsafe_allow_html=True)
+    with k2:
+        st.markdown('<div class="kpi"><h3>Sinais pendentes</h3><div class="big">0</div></div>', unsafe_allow_html=True)
+    with k3:
+        st.markdown('<div class="kpi"><h3>Lucro Hoje</h3><div class="big">—</div></div>', unsafe_allow_html=True)
+    with k4:
+        st.markdown('<div class="kpi"><h3>Exposição</h3><div class="big">—</div></div>', unsafe_allow_html=True)
+
+    st.caption("Logs e status em tempo real virão aqui.")
+    st.markdown('</div>', unsafe_allow_html=True)
