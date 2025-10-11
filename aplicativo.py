@@ -8,67 +8,70 @@ st.set_page_config(page_title="Automação Cripto", page_icon="🧠", layout="wi
 # -------------------- Estilos (tema escuro + componentes) --------------------
 CSS = """
 <style>
-.stApp { background: #0b1220 !important; }
-.block-container { padding-top: 1.2rem; }
+/* Fundo e layout */
+.stApp { background:#0b1220 !important; }
+.block-container { padding-top: 1rem; max-width: 1200px; }
 
-h1, h2, h3, h4, h5, h6, p, span, label, div { color: #e6f0ff; }
-a { color: #9ad1ff !important; }
+/* Tipografia */
+h1,h2,h3,h4,h5,h6,p,span,label,div { color:#e6f0ff; }
+.caption, .stCaption, small { color:#9ab6d9 !important; }
 
-.wrapper { margin-top: .5rem; }
+/* Cabeçalho */
+h2 { font-weight: 800; letter-spacing:.3px; }
+.subtitle { margin-top:-6px; color:#89a5c9; }
 
-.tabs-bar {
-  display:flex; gap:.5rem; flex-wrap:wrap; margin:.6rem 0 1.1rem 0;
+/* Abas no TOPO com cara de “seu projeto” */
+.stTabs [data-baseweb="tab-list"]{
+  border-bottom:1px solid rgba(255,255,255,.08);
+  gap:.5rem; padding-bottom:.4rem; margin:.2rem 0 1rem 0;
+}
+.stTabs [data-baseweb="tab"]{
+  background:#101a2c; color:#cfe4ff;
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:10px; padding:.45rem .85rem; font-weight:600;
+}
+.stTabs [data-baseweb="tab"]:hover{ filter:brightness(1.05); }
+.stTabs [aria-selected="true"]{
+  background:#223dee; border-color:#2d4bff; color:#fff;
 }
 
-.tab {
-  padding:.45rem .85rem;
-  border-radius: 999px;
-  background:#101a2c;
+/* Cards (seções) */
+.card{
+  background:#0f1a2e;
   border:1px solid rgba(255,255,255,.08);
-  color:#cfe4ff;
-  font-weight:600; font-size:.92rem;
-  cursor:pointer; user-select:none;
-}
-.tab-active {
-  background:#223dee;
-  border-color:#2d4bff;
-  color:#fff;
-}
-
-.card {
-  background:#111a2b;
-  border:1px solid rgba(255,255,255,.07);
-  border-radius:16px;
-  padding:18px 18px 8px 18px;
+  border-radius:16px; padding:18px 18px 8px 18px;
   box-shadow:0 8px 24px rgba(0,0,0,.35);
 }
+.section-title{ color:#9ad1ff; font-weight:700; margin-bottom:.6rem; }
 
-.section-title {
-  font-weight:700; font-size:1.05rem; letter-spacing:.2px;
-  color:#9ad1ff; margin-bottom:.6rem;
-}
-
-/* inputs / selects */
+/* Inputs / botões */
 .stTextInput>div>div>input,
 .stNumberInput input,
-div[data-baseweb="select"] {
+div[data-baseweb="select"]{
   background:#0e1830 !important;
-  border:1px solid rgba(255,255,255,.10) !important;
+  border:1px solid rgba(255,255,255,.12) !important;
   color:#e6f0ff !important;
 }
 .stButton>button{
-  border-radius:10px; padding:.55rem 1rem;
-  background:#223dee; border:1px solid #2d4bff;
+  background:#223dee; border:1px solid #2d4bff; color:#fff;
+  border-radius:10px; padding:.55rem 1rem; font-weight:700;
 }
-.stButton>button:hover{ filter:brightness(1.05); }
+.stButton>button:hover{ filter:brightness(1.07); }
 
-/* tabela editável */
+/* Tabela editável */
 [data-testid="stDataEditor"]{
   background:#101a2c !important;
   border-radius:12px; border:1px solid rgba(255,255,255,.08);
 }
+
+/* Métricas (Estado) */
+[data-testid="stMetric"]{
+  background:#0f1a2e; border:1px solid rgba(255,255,255,.08);
+  border-radius:12px; padding:10px;
+}
 </style>
 """
+
 st.markdown(CSS, unsafe_allow_html=True)
 
 # -------------------- Cabeçalho --------------------
