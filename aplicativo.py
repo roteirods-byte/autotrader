@@ -10,6 +10,36 @@ from typing import List, Dict
 
 import pandas as pd
 import streamlit as st
+# === BLOCO C1 — Tema global (títulos abóbora) ===
+import streamlit as st
+
+ORANGE = "#ff8c00"  # abóbora
+
+def aplicar_tema_global():
+    st.markdown(f"""
+    <style>
+      /* Títulos padrão */
+      h1, h2, h3, h4 {{ color: {ORANGE} !important; }}
+
+      /* Rótulos dos widgets (compatível com versões recentes do Streamlit) */
+      [data-testid="stWidgetLabel"] p,
+      .stTextInput label, .stNumberInput label, .stSelectbox label, .stMultiSelect label,
+      .stDateInput label, .stCheckbox label, .stRadio label, .stSlider label {{
+        color: {ORANGE} !important;
+        font-weight: 600 !important;
+      }}
+
+      /* Cabeçalhos de tabelas/dataframes */
+      thead tr th {{
+        color: {ORANGE} !important;
+        font-weight: 700 !important;
+      }}
+    </style>
+    """, unsafe_allow_html=True)
+
+# aplicar imediatamente
+aplicar_tema_global()
+# === FIM BLOCO C1 ===
 
 # ----------------------------------------------------------------
 # Persistência (usa services/persist.py se existir; senão, fallback)
