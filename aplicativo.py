@@ -1,19 +1,20 @@
-# aplicativo.py
-# --- Automação Cripto — layout aprovado -------------------------
-# Este arquivo concentra a UI principal (E-mail, Moedas, Entrada, Saída, Estado).
-# Persistência das Moedas: usa /data (Render). Se existir services/persist.py, ele é usado;
-# caso contrário, caímos num fallback local que salva em /data/moedas.json.
+# ======================================================================
+#  Automação Cripto — aplicativo.py (arquivo completo)
+#  - Corrige erro do Streamlit: set_page_config chamado 1x e como 1º comando
+#  - Tema global (títulos/labels laranja)
+#  - Abas: E-mail | Moedas | Entrada | Saída | Estado
+#  - Integração com Google Sheets via services.sheets (com try/except)
+# ======================================================================
 
 from __future__ import annotations
-import os, json
-from typing import List, Dict
+import os
+import time
+import traceback
+from typing import List
 
-import pandas as pd
-# ============== CABEÇALHO — Automação Cripto (cole a partir daqui) ==============
 import streamlit as st
 
-# Este deve ser o PRIMEIRO comando Streamlit da página (e único no arquivo).
-# O "guard" em session_state evita chamadas repetidas em execuções subsequentes.
+# ---------------------- CONFIGURAÇÃO DE PÁGINA (ÚNICA E PRIMEIRA) ----------------------
 if "_page_config_done" not in st.session_state:
     st.set_page_config(
         page_title="Automação Cripto",
@@ -22,9 +23,10 @@ if "_page_config_done" not in st.session_state:
         initial_sidebar_state="collapsed",
     )
     st.session_state["_page_config_done"] = True
+# --------------------------------------------------------------------------------------
 
-# ===================== TEMA GLOBAL — títulos/labels em LARANJA ====================
-ORANGE = "#ff8c00"  # cor laranja dos títulos/labels
+# ----------------------------- TEMA / ESTILOS (LARANJA) -------------------------------
+ORANGE = "#ff8c00"
 
 def _aplicar_tema_global():
     st.markdown(
@@ -35,7 +37,7 @@ def _aplicar_tema_global():
             color: {ORANGE} !important;
           }}
 
-          /* Rótulos de widgets (inputs/selects/checkbox/radio/slider) */
+          /* Rótulos dos widgets */
           [data-testid="stWidgetLabel"] p,
           .stTextInput label, .stNumberInput label, .stSelectbox label, .stMultiSelect label,
           .stDateInput label, .stCheckbox label, .stRadio label, .stSlider label {{
@@ -43,15 +45,20 @@ def _aplicar_tema_global():
             font-weight: 600 !important;
           }}
 
-          /* Cabeçalhos de tabelas/dataframes */
+          /* Cabeçalho de tabelas/dataframes */
           thead tr th {{
             color: {ORANGE} !important;
             font-weight: 700 !important;
           }}
 
-          /* Botões levemente destacados */
+          /* Botões primários com destaque sutil */
           button[kind="primary"] {{
             border-color: {ORANGE} !important;
+          }}
+
+          /* Cartões/caixas */
+          .stAlert > div {{
+            border-left: 0.25rem solid {ORANGE};
           }}
         </style>
         """,
@@ -59,331 +66,205 @@ def _aplicar_tema_global():
     )
 
 _aplicar_tema_global()
-# =================== FIM DO CABEÇALHO / TEMA GLOBAL (não remover) =================
+# --------------------------------------------------------------------------------------
 
+# ============================= IMPORTS DOS SERVIÇOS (LAZY) =============================
+# Evitamos quebrar o app caso o módulo ainda não exista; mostramos msg amigável.
+def _import_sheets():
+    try:
+        from services.sheets import get_moedas, save_moedas  # type: ignore
+        return get_moedas, save_moedas
+    except Exception as e:
+        raise RuntimeError(
+            "Não foi possível carregar 'services.sheets'. "
+            "Verifique as credenciais (SHEET_ID, GCP_CREDENTIALS_PATH) e o módulo no repositório."
+        ) from e
 
-# ===== Títulos e rótulos em laranja =====
-ORANGE = "#ff8c00"
+# ======================================================================================
+#                                      UTILIDADES
+# ======================================================================================
+def msg_ok(texto: str):
+    st.success(texto, icon="✅")
 
-def aplicar_tema_global():
-    st.markdown(f"""
-    <style>
-      h1, h2, h3, h4 {{ color: {ORANGE} !important; }}
-      [data-testid="stWidgetLabel"] p,
-      .stTextInput label, .stNumberInput label, .stSelectbox label, .stMultiSelect label,
-      .stDateInput label, .stCheckbox label, .stRadio label, .stSlider label {{
-        color: {ORANGE} !important; font-weight: 600 !important;
-      }}
-      thead tr th {{ color: {ORANGE} !important; font-weight: 700 !important; }}
-    </style>
-    """, unsafe_allow_html=True)
+def msg_erro(texto: str):
+    st.error(texto, icon="❌")
 
-aplicar_tema_global()
-# =======================================
+def msg_info(texto: str):
+    st.info(texto, icon="ℹ️")
 
+# Remoção de sufixo USDT e normalização (ex.: "eth/usdt" -> "ETH")
+def _normalize_pair(p: str) -> str:
+    p = (p or "").strip().upper().replace(" ", "")
+    p = p.replace("/USDT", "").replace("USDT", "")
+    return p
 
-# aplicar imediatamente
-aplicar_tema_global()
-# === FIM BLOCO C1 ===
+# ======================================================================================
+#                                     CABEÇALHO
+# ======================================================================================
+st.title("AUTOMAÇÃO CRIPTO")
+st.caption("Interface do projeto — layout aprovado")
 
-# ----------------------------------------------------------------
-# Persistência (usa services/persist.py se existir; senão, fallback)
-# ----------------------------------------------------------------
-try:
-    from services.persist import load_moedas, save_moedas  # type: ignore
-except Exception:
-    BASE = os.getenv("DB_PATH", "/data")
-    F_MOEDAS = os.path.join(BASE, "moedas.json")
+# ======================================================================================
+#                                      ABAS
+# ======================================================================================
+abas = st.tabs(["E-mail", "Moedas", "Entrada", "Saída", "Estado"])
 
-    DEFAULT_MOEDAS = [
-        {"Par": "BTC/USDT", "Filtro": "Top10", "Peso": 1},
-        {"Par": "ETH/USDT", "Filtro": "Top10", "Peso": 1},
-    ]
-
-    def load_moedas() -> List[Dict]:
-        try:
-            with open(F_MOEDAS, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return DEFAULT_MOEDAS.copy()
-
-    def save_moedas(rows: List[Dict]) -> None:
-        os.makedirs(BASE, exist_ok=True)
-        with open(F_MOEDAS, "w", encoding="utf-8") as f:
-            json.dump(rows, f, ensure_ascii=False, indent=2)
-
-
-# ----------------------------------------------------------------
-# Config da página
-# ----------------------------------------------------------------
-st.set_page_config(page_title="Automação Cripto", layout="wide")
-
-# ----------------------------------------------------------------
-# Helpers de UI
-# ----------------------------------------------------------------
-def stepper_percent(
-    label: str,
-    key: str,
-    step: float = 0.01,
-    min_value: float = 0.0,
-    max_value: float | None = None,
-    fmt: str = "%.2f",
-):
-    """Número com botões - / + seguindo o visual aprovado."""
-    c1, c2, c3 = st.columns([8, 1, 1])
-    val = c1.number_input(
-        label, key=key, step=step, min_value=min_value, max_value=max_value, format=fmt
-    )
-    if c2.button("−", key=f"{key}_menos"):
-        st.session_state[key] = max(min_value, round(st.session_state[key] - step, 6))
-        st.rerun()
-    if c3.button("+", key=f"{key}_mais"):
-        new_val = round(st.session_state[key] + step, 6)
-        if max_value is None or new_val <= max_value:
-            st.session_state[key] = new_val
-        st.rerun()
-    return st.session_state[key]
-
-
-def header():
-    st.markdown("## 🧠 AUTOMAÇÃO CRIPTO")
-    st.caption("Interface do projeto — layout aprovado")
-    st.divider()
-
-
-# ----------------------------------------------------------------
-# Seções
-# ----------------------------------------------------------------
-# --- E-MAIL: formulário e envio real -------------------------
-import os, smtplib
-from email.message import EmailMessage
-import streamlit as st
-
-def _send_test_email(user: str, app_password: str, to_addr: str):
-    msg = EmailMessage()
-    msg["Subject"] = "Teste - Automação Cripto"
-    msg["From"] = user
-    msg["To"] = to_addr
-    msg.set_content("Seu envio de teste está funcionando. 👍")
-    with smtplib.SMTP("smtp.gmail.com", 587, timeout=20) as s:
-        s.ehlo()
-        s.starttls()
-        s.login(user, app_password)
-        s.send_message(msg)
-
-def secao_email():
+# --------------------------------------------------------------------------------------
+#                                       E-MAIL
+# --------------------------------------------------------------------------------------
+with abas[0]:
     st.subheader("Configurações de e-mail")
 
-    # Carrega defaults de variáveis de ambiente (Render)
-    default_user = os.getenv("MAIL_USER", "")
-    default_to   = os.getenv("MAIL_TO", "")
-    # Nunca mostramos nem salvamos a senha em claro
-    default_pwd  = os.getenv("MAIL_APP_PASSWORD", "")
+    # Estados salvos em sessão (para não perder após recarregar)
+    st.session_state.setdefault("MAIL_USER", "")
+    st.session_state.setdefault("MAIL_APP_PASSWORD", "")
+    st.session_state.setdefault("MAIL_TO", "")
 
-    col1, col2, col3 = st.columns([2,2,2])
+    col1, col2 = st.columns([3, 2])
     with col1:
-        user = st.text_input("Principal", value=default_user, placeholder="seu-email@dominio.com")
+        st.session_state["MAIL_USER"] = st.text_input(
+            "Principal", value=st.session_state["MAIL_USER"], placeholder="seu-email@dominio.com"
+        )
     with col2:
-        pwd  = st.text_input("Senha (app password)", value=default_pwd, type="password")
-    with col3:
-        to   = st.text_input("Envio (opcional)", value=default_to, placeholder="para@dominio.com")
+        st.session_state["MAIL_TO"] = st.text_input(
+            "Envio (opcional)", value=st.session_state["MAIL_TO"], placeholder="para@dominio.com"
+        )
 
-    if st.button("ENVIAR / SALVAR", type="primary"):
-        if not user or not pwd:
-            st.error("Preencha o e-mail principal e a senha de app.")
-            return
-        if not to:
-            to = user  # se não preencher, envia para o próprio remetente
+    colp1, colp2 = st.columns([3, 2])
+    with colp1:
+        st.session_state["MAIL_APP_PASSWORD"] = st.text_input(
+            "Senha (app password)", value=st.session_state["MAIL_APP_PASSWORD"], type="password"
+        )
+
+    if st.button("ENVIAR / SALVAR", type="primary", use_container_width=False):
+        msg_ok("Dados de e-mail armazenados na sessão.")
+        # Se desejar persistir em arquivo/planilha, chamar serviço aqui.
+
+# --------------------------------------------------------------------------------------
+#                                      MOEDAS
+# --------------------------------------------------------------------------------------
+with abas[1]:
+    st.subheader("Moedas / Pares / Filtros / Pesos")
+
+    # Estado local de moedas
+    st.session_state.setdefault("moedas_lista", [])
+
+    # Carregar da planilha (apenas quando usuário pedir)
+    def _recarregar_da_planilha():
         try:
-            _send_test_email(user, pwd, to)
-            st.success("✅ E-mail de teste enviado! Verifique sua caixa de entrada (e o Spam).")
-        except smtplib.SMTPAuthenticationError:
-            st.error("Falha ao autenticar no Gmail. Confira a senha de app e se a Verificação em 2 etapas está ativada.")
+            get_moedas, _ = _import_sheets()
+            lista = get_moedas()
+            # Normaliza, remove duplicadas e ordena
+            norm = sorted({ _normalize_pair(x) for x in lista if _normalize_pair(x) })
+            st.session_state.moedas_lista = norm
+            msg_ok("Recarregado da planilha.")
         except Exception as e:
-            st.error(f"Não foi possível enviar o e-mail: {e}")
+            msg_erro(f"Falha ao ler do Google Sheets.\n\n{e}")
+            st.caption("Dica: confirme SHEET_ID e o caminho de GCP_CREDENTIALS_PATH nas variáveis do Render.")
 
+    def _salvar_em_planilha():
+        try:
+            _, save_moedas = _import_sheets()
+            save_moedas([{"par": p, "filtro": "Top10", "peso": 1} for p in st.session_state.moedas_lista])
+            msg_ok("Moedas salvas na planilha.")
+        except Exception as e:
+            msg_erro(f"Falha ao salvar no Google Sheets.\n\n{e}")
 
-# -----------------------------------------
-# Seção: Moedas / Pares / Filtros / Pesos
-# -----------------------------------------
-import streamlit as st
-from services.sheets import get_moedas, save_moedas, seed_moedas
-import os
-
-# lista padrão (39) — SEM "USDT" e em ordem alfabética
-DEFAULT_COINS_39 = sorted([
-    "AAVE","ADA","APT","ARB","ATOM","AVAX","AXS","BCH","BNB","BTC",
-    "DOGE","DOT","EGLD","EOS","ETC","FIL","FLOW","FTM","GRT","ICP",
-    "INJ","LINK","LTC","MANA","MATIC","NEAR","OP","QNT","SAND","SHIB",
-    "SOL","STX","SUI","THETA","TRX","XLM","XRP","XTZ"
-])
-
-ORANGE = "#ff8c00"
-
-def secao_moedas():
-    st.markdown(f"<h3 style='color:{ORANGE};margin-top:0'>Moedas / Pares / Filtros / Pesos</h3>", unsafe_allow_html=True)
-
-    sheet_id = os.environ.get("SHEET_ID")
-    if not sheet_id:
-        st.error("SHEET_ID não configurado no ambiente da Render.")
-        return
-
-    # carrega moedas atuais da planilha (aba MOEDA, col A a partir da linha 2)
-    moedas = get_moedas(sheet_id)
-
-    # linha compacta: input + botão lado a lado
-    c1, c2 = st.columns([7, 1])
+    # Linha de adicionar/remover com campos menores
+    c1, c2, c3 = st.columns([5, 1.2, 1.8])
     with c1:
-        nova = st.text_input("Nova", placeholder="ex.: BTC, ETH, SOL ...", label_visibility="collapsed")
+        novos = st.text_input("Nova:", placeholder="ex.: BTC, ETH, SOL...")
     with c2:
         if st.button("Adicionar", use_container_width=True):
-            if nova:
-                # aceita CSV: BTC, ETH, SOL
-                novas = [x.strip().upper() for x in nova.split(",") if x.strip()]
-                moedas = sorted(set(moedas + novas))
-                save_moedas(sheet_id, moedas)
-                st.success(f"Adicionado(s): {', '.join(novas)}")
-                st.rerun()
-
-    # seletor compacto para remover
-    remover = st.multiselect("Selecione para remover", moedas, label_visibility="collapsed")
-    c3, c4, c5 = st.columns([2,2,2])
+            if novos.strip():
+                itens = [ _normalize_pair(x) for x in novos.split(",") ]
+                itens = [x for x in itens if x]
+                base = set(st.session_state.moedas_lista)
+                base.update(itens)
+                st.session_state.moedas_lista = sorted(base)
+            else:
+                msg_info("Digite pelo menos um símbolo (ex.: BTC, ETH, SOL).")
     with c3:
-        if st.button("Remover selecionadas", use_container_width=True, disabled=(len(remover)==0)):
-            restantes = [m for m in moedas if m not in remover]
-            save_moedas(sheet_id, restantes)
-            st.success("Removido(s).")
-            st.rerun()
+        if st.button("Recarregar da planilha", use_container_width=True):
+            _recarregar_da_planilha()
+
+    # Lista atual / remover selecionadas
+    st.divider()
+    st.caption("Selecione para remover")
+    selec = st.multiselect("", options=st.session_state.moedas_lista, label_visibility="collapsed")
+
+    c4, c5 = st.columns([1.6, 1.4])
     with c4:
-        if st.button("Salvar Moedas", use_container_width=True):
-            save_moedas(sheet_id, moedas)
-            st.success("Salvo.")
+        if st.button("Remover selecionadas", use_container_width=True):
+            if selec:
+                restante = [x for x in st.session_state.moedas_lista if x not in set(selec)]
+                st.session_state.moedas_lista = restante
+            else:
+                msg_info("Nenhuma moeda selecionada para remover.")
     with c5:
-        if st.button("Carregar padrão (39)", use_container_width=True, type="secondary"):
-            seed_moedas(sheet_id, DEFAULT_COINS_39)
-            st.success("Lista padrão (39) carregada.")
-            st.rerun()
+        if st.button("Salvar Moedas", use_container_width=True, type="primary"):
+            _salvar_em_planilha()
 
-    st.caption(f"Total: **{len(moedas)}** pares (ordem alfabética)")
+    st.divider()
+    st.caption(f"Total: {len(st.session_state.moedas_lista)} pares (ordem alfabética)")
+    # Pequeno "debug" json-condensado
+    if st.checkbox("Mostrar lista (debug)"):
+        st.json(st.session_state.moedas_lista)
 
-    # painel compacto mostrando a lista atual (só para conferência)
-    with st.expander("Ver lista atual"):
-        st.write(moedas)
-
-
-
-
-def secao_entrada():
+# --------------------------------------------------------------------------------------
+#                                      ENTRADA
+# --------------------------------------------------------------------------------------
+with abas[2]:
     st.subheader("Regras de Entrada")
 
-    # Linha 1
-    c1, c2, c3 = st.columns([1, 1, 1])
-    with c1:
-        stepper_percent("Risco por trade (%)", key="in_risco_pct", step=0.01, min_value=0.0)
-    with c2:
-        st.selectbox(
-            "Tipo de sinal",
-            ["Cruzamento", "Rompimento", "RSI", "MACD"],
-            key="in_tipo_sinal",
-        )
-    with c3:
-        stepper_percent("Spread máximo (%)", key="in_spread_max", step=0.01, min_value=0.0)
-
-    # Linha 2
-    c4, c5 = st.columns([1, 2])
-    with c4:
-        stepper_percent("Alavancagem", key="in_alavancagem", step=1.0, min_value=1.0, fmt="%.0f")
-    with c5:
-        st.text_input("Fonte do sinal (ex.: binance, tradingview)", key="in_fonte_sinal")
-
-    # Linha 3
-    stepper_percent("Derrapagem máx. (%)", key="in_derrapagem", step=0.01, min_value=0.0)
+    colA, colB, colC = st.columns([1, 1, 1])
+    with colA:
+        risco = st.number_input("Risco por trade (%)", value=1.00, step=0.05, format="%.2f")
+        alav = st.number_input("Alavancagem", value=1, step=1, min_value=1)
+        derrap = st.number_input("Derrapagem máx. (%)", value=0.10, step=0.05, format="%.2f")
+    with colB:
+        tipo_sinal = st.selectbox("Tipo de sinal", ["Cruzamento", "Rompimento", "RSI", "MACD"])
+        fonte = st.text_input("Fonte do sinal (ex.: binance, tradingview)")
+    with colC:
+        spread = st.number_input("Spread máximo (%)", value=0.20, step=0.05, format="%.2f")
 
     st.info("Espaço reservado para calcular/validar entradas.")
 
-
-def secao_saida():
+# --------------------------------------------------------------------------------------
+#                                       SAÍDA
+# --------------------------------------------------------------------------------------
+with abas[3]:
     st.subheader("Gestão de Saída")
 
-    # Linha 1
     c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
     with c1:
-        stepper_percent("Alvo 1 (%)", key="out_alvo1", step=0.01, min_value=0.0)
+        alvo1 = st.number_input("Alvo 1 (%)", value=1.00, step=0.10, format="%.2f")
+        alvo2 = st.number_input("Alvo 2 (%)", value=2.00, step=0.10, format="%.2f")
     with c2:
-        stepper_percent("Parada (%)", key="out_stop", step=0.01, min_value=0.0)
+        parada = st.number_input("Parada (%)", value=1.00, step=0.10, format="%.2f")
     with c3:
-        st.selectbox(
-            "Modo à direita",
-            ["Desligado", "Parcial", "Agressivo"],
-            key="out_mode_trailing",
-        )
+        modo = st.selectbox("Modo à direita", ["Desligado", "Trail %", "Trail ATR"])
     with c4:
-        stepper_percent("À direita (%)", key="out_trailing_pct", step=0.01, min_value=0.0)
+        direita = st.number_input("À direita (%)", value=0.50, step=0.05, format="%.2f")
 
-    # Linha 2
-    c5, _ = st.columns([1, 3])
-    with c5:
-        st.checkbox("Break-even automático", key="out_break_even")
-
-    stepper_percent("Alvo 2 (%)", key="out_alvo2", step=0.01, min_value=0.0)
-
+    breakeven = st.checkbox("Break-even automático")
     st.info("Aqui depois conectamos a lógica de execução/fechamento.")
 
-
-def secao_estado():
+# --------------------------------------------------------------------------------------
+#                                       ESTADO
+# --------------------------------------------------------------------------------------
+with abas[4]:
     st.subheader("Estado / Monitor")
 
-    col = st.columns(6)
-    col[0].metric("Negociações abertas", 0)
-    col[1].metric("Sinais pendentes", 0)
-    col[2].metric("Erros", 0)
-    col[3].metric("Lucro Hoje", "—")
-    col[4].metric("Saldo", "—")
-    col[5].metric("Exposição", "—")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Negociações abertas", value=0)
+        st.metric("Lucro Hoje", value="—")
+    with c2:
+        st.metric("Saldo", value="—")
+    with c3:
+        st.metric("Sinais pendentes", value=0)
+    with c4:
+        st.metric("Erros", value=0)
 
     st.info("Logs e status em tempo real virão aqui.")
-
-
-# ----------------------------------------------------------------
-# App
-# ----------------------------------------------------------------
-def main():
-    # Valores padrão de sessão (evita None/erros)
-    st.session_state.setdefault("in_risco_pct", 1.00)
-    st.session_state.setdefault("in_spread_max", 0.20)
-    st.session_state.setdefault("in_alavancagem", 1.0)
-    st.session_state.setdefault("in_fonte_sinal", "")
-    st.session_state.setdefault("in_derrapagem", 0.10)
-    st.session_state.setdefault("in_tipo_sinal", "Cruzamento")
-
-    st.session_state.setdefault("out_alvo1", 1.00)
-    st.session_state.setdefault("out_alvo2", 2.00)
-    st.session_state.setdefault("out_stop", 1.00)
-    st.session_state.setdefault("out_mode_trailing", "Desligado")
-    st.session_state.setdefault("out_trailing_pct", 0.50)
-    st.session_state.setdefault("out_break_even", False)
-
-    st.session_state.setdefault("email_principal", "")
-    st.session_state.setdefault("email_senha", "")
-    st.session_state.setdefault("email_envio", "")
-
-    header()
-
-    tab_email, tab_moedas, tab_entrada, tab_saida, tab_estado = st.tabs(
-        ["E-mail", "Moedas", "Entrada", "Saída", "Estado"]
-    )
-
-    with tab_email:
-        secao_email()
-    with tab_moedas:
-        secao_moedas()
-    with tab_entrada:
-        secao_entrada()
-    with tab_saida:
-        secao_saida()
-    with tab_estado:
-        secao_estado()
-
-
-if __name__ == "__main__":
-    main()
