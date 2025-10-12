@@ -9,33 +9,78 @@ import os, json
 from typing import List, Dict
 
 import pandas as pd
-import streamlit as st
-# === BLOCO C1 — Tema global (títulos abóbora) ===
+# ============== CABEÇALHO — Automação Cripto (cole a partir daqui) ==============
 import streamlit as st
 
-ORANGE = "#ff8c00"  # abóbora
+# Este deve ser o PRIMEIRO comando Streamlit da página (e único no arquivo).
+# O "guard" em session_state evita chamadas repetidas em execuções subsequentes.
+if "_page_config_done" not in st.session_state:
+    st.set_page_config(
+        page_title="Automação Cripto",
+        page_icon="🧠",
+        layout="wide",
+        initial_sidebar_state="collapsed",
+    )
+    st.session_state["_page_config_done"] = True
+
+# ===================== TEMA GLOBAL — títulos/labels em LARANJA ====================
+ORANGE = "#ff8c00"  # cor laranja dos títulos/labels
+
+def _aplicar_tema_global():
+    st.markdown(
+        f"""
+        <style>
+          /* Títulos */
+          h1, h2, h3, h4, h5, h6 {{
+            color: {ORANGE} !important;
+          }}
+
+          /* Rótulos de widgets (inputs/selects/checkbox/radio/slider) */
+          [data-testid="stWidgetLabel"] p,
+          .stTextInput label, .stNumberInput label, .stSelectbox label, .stMultiSelect label,
+          .stDateInput label, .stCheckbox label, .stRadio label, .stSlider label {{
+            color: {ORANGE} !important;
+            font-weight: 600 !important;
+          }}
+
+          /* Cabeçalhos de tabelas/dataframes */
+          thead tr th {{
+            color: {ORANGE} !important;
+            font-weight: 700 !important;
+          }}
+
+          /* Botões levemente destacados */
+          button[kind="primary"] {{
+            border-color: {ORANGE} !important;
+          }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+_aplicar_tema_global()
+# =================== FIM DO CABEÇALHO / TEMA GLOBAL (não remover) =================
+
+
+# ===== Títulos e rótulos em laranja =====
+ORANGE = "#ff8c00"
 
 def aplicar_tema_global():
     st.markdown(f"""
     <style>
-      /* Títulos padrão */
       h1, h2, h3, h4 {{ color: {ORANGE} !important; }}
-
-      /* Rótulos dos widgets (compatível com versões recentes do Streamlit) */
       [data-testid="stWidgetLabel"] p,
       .stTextInput label, .stNumberInput label, .stSelectbox label, .stMultiSelect label,
       .stDateInput label, .stCheckbox label, .stRadio label, .stSlider label {{
-        color: {ORANGE} !important;
-        font-weight: 600 !important;
+        color: {ORANGE} !important; font-weight: 600 !important;
       }}
-
-      /* Cabeçalhos de tabelas/dataframes */
-      thead tr th {{
-        color: {ORANGE} !important;
-        font-weight: 700 !important;
-      }}
+      thead tr th {{ color: {ORANGE} !important; font-weight: 700 !important; }}
     </style>
     """, unsafe_allow_html=True)
+
+aplicar_tema_global()
+# =======================================
+
 
 # aplicar imediatamente
 aplicar_tema_global()
