@@ -128,53 +128,73 @@ def secao_email():
             st.error(f"Não foi possível enviar o e-mail: {e}")
 
 
-# --- Seção MOEDAS (lê/escreve na Google Sheets) -----------------
+# -----------------------------------------
+# Seção: Moedas / Pares / Filtros / Pesos
+# -----------------------------------------
 import streamlit as st
-from services.sheets import get_moedas, save_moedas
+from services.sheets import get_moedas, save_moedas, seed_moedas
+import os
+
+# lista padrão (39) — SEM "USDT" e em ordem alfabética
+DEFAULT_COINS_39 = sorted([
+    "AAVE","ADA","APT","ARB","ATOM","AVAX","AXS","BCH","BNB","BTC",
+    "DOGE","DOT","EGLD","EOS","ETC","FIL","FLOW","FTM","GRT","ICP",
+    "INJ","LINK","LTC","MANA","MATIC","NEAR","OP","QNT","SAND","SHIB",
+    "SOL","STX","SUI","THETA","TRX","XLM","XRP","XTZ"
+])
+
+ORANGE = "#ff8c00"
 
 def secao_moedas():
-    st.subheader("Moedas / Pares / Filtros / Pesos")
+    st.markdown(f"<h3 style='color:{ORANGE};margin-top:0'>Moedas / Pares / Filtros / Pesos</h3>", unsafe_allow_html=True)
 
-    if "moedas_lista" not in st.session_state:
-        st.session_state.moedas_lista = get_moedas()
+    sheet_id = os.environ.get("SHEET_ID")
+    if not sheet_id:
+        st.error("SHEET_ID não configurado no ambiente da Render.")
+        return
 
-    col_inp, col_add = st.columns([4,1])
-    with col_inp:
-        novas = st.text_input("Nova:", placeholder="ex.: BTC, ETH, SOL ...").upper().strip()
-    with col_add:
-        if st.button("Adicionar"):
-            if novas:
-                # aceita separadas por vírgula ; ou espaço
-                raw = novas.replace(";", ",").replace("/", " ").replace("  ", " ")
-                adds = []
-                for x in raw.split(","):
-                    for y in x.split():
-                        y = y.strip().upper().replace("USDT", "")
-                        if y:
-                            adds.append(y)
-                st.session_state.moedas_lista = sorted(set(st.session_state.moedas_lista + adds))
-                st.success(f"Adicionado: {', '.join(adds)}")
+    # carrega moedas atuais da planilha (aba MOEDA, col A a partir da linha 2)
+    moedas = get_moedas(sheet_id)
 
-    remover = st.multiselect(
-        "Selecione para remover",
-        options=st.session_state.moedas_lista,
-        default=[]
-    )
-    c1, c2, c3 = st.columns([2,2,2])
+    # linha compacta: input + botão lado a lado
+    c1, c2 = st.columns([7, 1])
     with c1:
-        if st.button("Remover selecionadas"):
-            st.session_state.moedas_lista = [t for t in st.session_state.moedas_lista if t not in remover]
+        nova = st.text_input("Nova", placeholder="ex.: BTC, ETH, SOL ...", label_visibility="collapsed")
     with c2:
-        if st.button("Salvar Moedas"):
-            save_moedas(st.session_state.moedas_lista)
-            st.success("✅ Salvo na planilha do Google.")
-    with c3:
-        if st.button("Recarregar da planilha"):
-            st.session_state.moedas_lista = get_moedas()
-            st.info("Recarregado.")
+        if st.button("Adicionar", use_container_width=True):
+            if nova:
+                # aceita CSV: BTC, ETH, SOL
+                novas = [x.strip().upper() for x in nova.split(",") if x.strip()]
+                moedas = sorted(set(moedas + novas))
+                save_moedas(sheet_id, moedas)
+                st.success(f"Adicionado(s): {', '.join(novas)}")
+                st.rerun()
 
-    st.caption(f"Total: {len(st.session_state.moedas_lista)} pares (ordem alfabética)")
-    st.write(st.session_state.moedas_lista)
+    # seletor compacto para remover
+    remover = st.multiselect("Selecione para remover", moedas, label_visibility="collapsed")
+    c3, c4, c5 = st.columns([2,2,2])
+    with c3:
+        if st.button("Remover selecionadas", use_container_width=True, disabled=(len(remover)==0)):
+            restantes = [m for m in moedas if m not in remover]
+            save_moedas(sheet_id, restantes)
+            st.success("Removido(s).")
+            st.rerun()
+    with c4:
+        if st.button("Salvar Moedas", use_container_width=True):
+            save_moedas(sheet_id, moedas)
+            st.success("Salvo.")
+    with c5:
+        if st.button("Carregar padrão (39)", use_container_width=True, type="secondary"):
+            seed_moedas(sheet_id, DEFAULT_COINS_39)
+            st.success("Lista padrão (39) carregada.")
+            st.rerun()
+
+    st.caption(f"Total: **{len(moedas)}** pares (ordem alfabética)")
+
+    # painel compacto mostrando a lista atual (só para conferência)
+    with st.expander("Ver lista atual"):
+        st.write(moedas)
+
 
 
 
