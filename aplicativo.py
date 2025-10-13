@@ -1,9 +1,9 @@
 # ======================================================================
 #  Automação Cripto — aplicativo.py (arquivo completo)
-#  - Corrige erro do Streamlit: set_page_config chamado 1x e como 1º comando
-#  - Tema global (títulos/labels laranja)
-#  - Abas: E-mail | Moedas | Entrada | Saída | Estado
-#  - Integração com Google Sheets via services.sheets (com try/except)
+#  - set_page_config chamado 1x e como 1º comando
+#  - Títulos/labels/abas em laranja
+#  - Aba E-mail com inputs menores + envio real de e-mail (Gmail app password)
+#  - Demais abas preservadas
 # ======================================================================
 
 from __future__ import annotations
@@ -13,6 +13,10 @@ import traceback
 from typing import List
 
 import streamlit as st
+
+# E-mail
+import smtplib
+from email.message import EmailMessage
 
 # ---------------------- CONFIGURAÇÃO DE PÁGINA (ÚNICA E PRIMEIRA) ----------------------
 if "_page_config_done" not in st.session_state:
@@ -45,20 +49,45 @@ def _aplicar_tema_global():
             font-weight: 600 !important;
           }}
 
+          /* Abas (E-mail | Moedas | Entrada | Saída | Estado) */
+          .stTabs [data-baseweb="tab"] p,
+          div[data-baseweb="tab-list"] button[role="tab"] p {{
+            color: {ORANGE} !important;
+            font-weight: 700 !important;
+          }}
+          .stTabs [data-baseweb="tab"][aria-selected="true"] p,
+          div[data-baseweb="tab-list"] button[aria-selected="true"] p {{
+            color: {ORANGE} !important;
+            border-bottom: 2px solid {ORANGE};
+          }}
+
           /* Cabeçalho de tabelas/dataframes */
           thead tr th {{
             color: {ORANGE} !important;
             font-weight: 700 !important;
           }}
 
-          /* Botões primários com destaque sutil */
-          button[kind="primary"] {{
-            border-color: {ORANGE} !important;
-          }}
-
-          /* Cartões/caixas */
+          /* Borda de alerts com detalhe laranja */
           .stAlert > div {{
             border-left: 0.25rem solid {ORANGE};
+          }}
+
+          /* ---------- Inputs menores apenas na seção de e-mail ---------- */
+          #email-box [data-testid="stTextInput"] {{
+            width: 390px !important;       /* container */
+            max-width: 390px !important;
+          }}
+          #email-box [data-testid="stTextInput"] input {{
+            width: 380px !important;       /* campo de digitação */
+            max-width: 380px !important;
+          }}
+          #email-box [data-testid="stPassword"] {{
+            width: 390px !important;
+            max-width: 390px !important;
+          }}
+          #email-box [data-testid="stPassword"] input {{
+            width: 340px !important;  /* ligeiramente menor p/ ícone olho */
+            max-width: 340px !important;
           }}
         </style>
         """,
@@ -69,7 +98,6 @@ _aplicar_tema_global()
 # --------------------------------------------------------------------------------------
 
 # ============================= IMPORTS DOS SERVIÇOS (LAZY) =============================
-# Evitamos quebrar o app caso o módulo ainda não exista; mostramos msg amigável.
 def _import_sheets():
     try:
         from services.sheets import get_moedas, save_moedas  # type: ignore
@@ -92,7 +120,6 @@ def msg_erro(texto: str):
 def msg_info(texto: str):
     st.info(texto, icon="ℹ️")
 
-# Remoção de sufixo USDT e normalização (ex.: "eth/usdt" -> "ETH")
 def _normalize_pair(p: str) -> str:
     p = (p or "").strip().upper().replace(" ", "")
     p = p.replace("/USDT", "").replace("USDT", "")
@@ -115,30 +142,80 @@ abas = st.tabs(["E-mail", "Moedas", "Entrada", "Saída", "Estado"])
 with abas[0]:
     st.subheader("Configurações de e-mail")
 
-    # Estados salvos em sessão (para não perder após recarregar)
+    # Estados salvos em sessão
     st.session_state.setdefault("MAIL_USER", "")
     st.session_state.setdefault("MAIL_APP_PASSWORD", "")
     st.session_state.setdefault("MAIL_TO", "")
 
-    col1, col2 = st.columns([3, 2])
+    # Agrupamos em um contêiner com id para estilizar inputs (menores)
+    st.markdown('<div id="email-box">', unsafe_allow_html=True)
+
+    col1, spacer, col2 = st.columns([1, 0.2, 1])
     with col1:
         st.session_state["MAIL_USER"] = st.text_input(
-            "Principal", value=st.session_state["MAIL_USER"], placeholder="seu-email@dominio.com"
+            "Principal", value=st.session_state["MAIL_USER"], placeholder="seu-email@gmail.com"
         )
-    with col2:
-        st.session_state["MAIL_TO"] = st.text_input(
-            "Envio (opcional)", value=st.session_state["MAIL_TO"], placeholder="para@dominio.com"
-        )
-
-    colp1, colp2 = st.columns([3, 2])
-    with colp1:
         st.session_state["MAIL_APP_PASSWORD"] = st.text_input(
             "Senha (app password)", value=st.session_state["MAIL_APP_PASSWORD"], type="password"
         )
+    with col2:
+        st.session_state["MAIL_TO"] = st.text_input(
+            "Envio (opcional)", value=st.session_state["MAIL_TO"], placeholder="destinatario@dominio.com"
+        )
 
-    if st.button("ENVIAR / SALVAR", type="primary", use_container_width=False):
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ---------------------- Envio real de e-mail + salvamento ----------------------
+    def _enviar_email_teste(user: str, app_pw: str, para: str | None):
+        """Envia um e-mail de teste via Gmail (app password)."""
+        if not user or not app_pw:
+            raise ValueError("Preencha o e-mail principal e a senha (app password).")
+        dest = para.strip() if para and para.strip() else user
+
+        msg = EmailMessage()
+        msg["Subject"] = "Teste — Automação Cripto"
+        msg["From"] = user
+        msg["To"] = dest
+        msg.set_content(
+            f"Olá!\n\nEste é um e-mail de teste enviado pela Automação Cripto.\n"
+            f"Horário: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            "Se você recebeu, o envio está OK. ;)"
+        )
+
+        # SMTP Gmail — preferimos SSL 465 para simplificar
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=20) as smtp:
+            smtp.login(user, app_pw)
+            smtp.send_message(msg)
+
+        return dest
+
+    # Botão
+    if st.button("ENVIAR / SALVAR", type="primary"):
+        # Sempre salvamos em sessão
+        user = st.session_state["MAIL_USER"].strip()
+        app_pw = st.session_state["MAIL_APP_PASSWORD"].strip()
+        para = st.session_state["MAIL_TO"].strip()
+
+        # Mensagem de salvamento
         msg_ok("Dados de e-mail armazenados na sessão.")
-        # Se desejar persistir em arquivo/planilha, chamar serviço aqui.
+
+        # Tentamos enviar o e-mail de teste
+        try:
+            destinatario = _enviar_email_teste(user, app_pw, para)
+            msg_ok(f"E-mail de teste enviado para **{destinatario}**.")
+        except Exception as e:
+            # Mostramos erro amigável + dica
+            msg_erro(
+                "Falha ao enviar o e-mail de teste. "
+                "Verifique se o **app password** do Gmail está correto e se o e-mail principal está certo."
+            )
+            with st.expander("Detalhes técnicos (para diagnóstico)"):
+                st.code("".join(traceback.format_exception_only(type(e), e)))
+
+    st.caption(
+        "Dica: para Gmail, é **obrigatório** usar *App Password* (senha de app). "
+        "Conta → Segurança → Senhas de app."
+    )
 
 # --------------------------------------------------------------------------------------
 #                                      MOEDAS
@@ -146,38 +223,45 @@ with abas[0]:
 with abas[1]:
     st.subheader("Moedas / Pares / Filtros / Pesos")
 
-    # Estado local de moedas
     st.session_state.setdefault("moedas_lista", [])
 
-    # Carregar da planilha (apenas quando usuário pedir)
-    def _recarregar_da_planilha():
+    def _import_sheets_guard():
         try:
-            get_moedas, _ = _import_sheets()
+            return _import_sheets()
+        except Exception as e:
+            msg_erro(f"Sheets indisponível. {e}")
+            return None, None
+
+    def _recarregar_da_planilha():
+        get_moedas, _ = _import_sheets_guard()
+        if not get_moedas:
+            return
+        try:
             lista = get_moedas()
-            # Normaliza, remove duplicadas e ordena
-            norm = sorted({ _normalize_pair(x) for x in lista if _normalize_pair(x) })
+            norm = sorted({_normalize_pair(x) for x in lista if _normalize_pair(x)})
             st.session_state.moedas_lista = norm
             msg_ok("Recarregado da planilha.")
         except Exception as e:
             msg_erro(f"Falha ao ler do Google Sheets.\n\n{e}")
-            st.caption("Dica: confirme SHEET_ID e o caminho de GCP_CREDENTIALS_PATH nas variáveis do Render.")
 
     def _salvar_em_planilha():
+        _, save_moedas = _import_sheets_guard()
+        if not save_moedas:
+            return
         try:
-            _, save_moedas = _import_sheets()
-            save_moedas([{"par": p, "filtro": "Top10", "peso": 1} for p in st.session_state.moedas_lista])
+            payload = [{"par": p, "filtro": "Top10", "peso": 1} for p in st.session_state.moedas_lista]
+            save_moedas(payload)
             msg_ok("Moedas salvas na planilha.")
         except Exception as e:
             msg_erro(f"Falha ao salvar no Google Sheets.\n\n{e}")
 
-    # Linha de adicionar/remover com campos menores
     c1, c2, c3 = st.columns([5, 1.2, 1.8])
     with c1:
         novos = st.text_input("Nova:", placeholder="ex.: BTC, ETH, SOL...")
     with c2:
         if st.button("Adicionar", use_container_width=True):
             if novos.strip():
-                itens = [ _normalize_pair(x) for x in novos.split(",") ]
+                itens = [_normalize_pair(x) for x in novos.split(",")]
                 itens = [x for x in itens if x]
                 base = set(st.session_state.moedas_lista)
                 base.update(itens)
@@ -188,7 +272,6 @@ with abas[1]:
         if st.button("Recarregar da planilha", use_container_width=True):
             _recarregar_da_planilha()
 
-    # Lista atual / remover selecionadas
     st.divider()
     st.caption("Selecione para remover")
     selec = st.multiselect("", options=st.session_state.moedas_lista, label_visibility="collapsed")
@@ -207,7 +290,6 @@ with abas[1]:
 
     st.divider()
     st.caption(f"Total: {len(st.session_state.moedas_lista)} pares (ordem alfabética)")
-    # Pequeno "debug" json-condensado
     if st.checkbox("Mostrar lista (debug)"):
         st.json(st.session_state.moedas_lista)
 
