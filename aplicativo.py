@@ -1,9 +1,10 @@
 # ======================================================================
-#  Automação Cripto — aplicativo.py (arquivo completo)
-#  Revisões:
-#   - Inputs da aba E-mail bem menores (largura ~300px)
-#   - Envio de e-mail robusto: tenta SSL:465 e fallback TLS:587 (starttls)
-#   - Abas/títulos em laranja (estilo mantido)
+#  Automação Cripto — aplicativo.py (arquivo completo, rev. compacta)
+#  Mudanças:
+#   - Inputs da aba E-mail muito menores (≈240–260px)
+#   - Envio robusto (SSL 465 → fallback TLS 587) e envia para 2 destinos:
+#     destinatário + Gmail principal (cópia)
+#   - Mensagens de sucesso/erro mais claras
 # ======================================================================
 
 from __future__ import annotations
@@ -36,55 +37,39 @@ def _aplicar_tema_global():
     st.markdown(
         f"""
         <style>
-          /* Títulos */
-          h1, h2, h3, h4, h5, h6 {{
-            color: {ORANGE} !important;
-          }}
-
-          /* Rótulos dos widgets */
+          /* Títulos e guias */
+          h1, h2, h3, h4, h5, h6 {{ color: {ORANGE} !important; }}
           [data-testid="stWidgetLabel"] p,
-          .stTextInput label, .stNumberInput label, .stSelectbox label, .stMultiSelect label,
-          .stDateInput label, .stCheckbox label, .stRadio label, .stSlider label {{
-            color: {ORANGE} !important;
-            font-weight: 600 !important;
-          }}
+          .stTextInput label, .stPassword label, .stNumberInput label, .stSelectbox label,
+          .stMultiSelect label, .stCheckbox label {{ color: {ORANGE} !important; font-weight:600; }}
+          .stTabs [data-baseweb="tab"] p {{ color:{ORANGE} !important; font-weight:700 !important; }}
+          .stTabs [data-baseweb="tab"][aria-selected="true"] p {{ border-bottom:2px solid {ORANGE}; }}
 
-          /* Abas (E-mail | Moedas | Entrada | Saída | Estado) */
-          .stTabs [data-baseweb="tab"] p,
-          div[data-baseweb="tab-list"] button[role="tab"] p {{
-            color: {ORANGE} !important;
-            font-weight: 700 !important;
-          }}
-          .stTabs [data-baseweb="tab"][aria-selected="true"] p,
-          div[data-baseweb="tab-list"] button[aria-selected="true"] p {{
-            color: {ORANGE} !important;
-            border-bottom: 2px solid {ORANGE};
-          }}
+          /* Cabeçalho de tabelas */
+          thead tr th {{ color:{ORANGE} !important; font-weight:700 !important; }}
 
-          /* Cabeçalho de tabelas/dataframes */
-          thead tr th {{
-            color: {ORANGE} !important;
-            font-weight: 700 !important;
-          }}
+          /* Alertas com filete laranja */
+          .stAlert > div {{ border-left:0.25rem solid {ORANGE}; }}
 
-          /* Borda de alerts com detalhe laranja */
-          .stAlert > div {{
-            border-left: 0.25rem solid {ORANGE};
-          }}
-
-          /* ---------- Inputs menores apenas na seção de e-mail ---------- */
-          #email-box [data-testid="stTextInput"],
-          #email-box [data-testid="stPassword"] {{
-            width: 320px !important;       /* container */
-            max-width: 320px !important;
-          }}
-          #email-box [data-testid="stTextInput"] input {{
-            width: 300px !important;       /* campo de digitação */
-            max-width: 300px !important;
-          }}
-          #email-box [data-testid="stPassword"] input {{
-            width: 260px !important;       /* menor por causa do ícone 'olho' */
+          /* ------- Inputs BEM MENORES apenas na seção de e-mail ------- */
+          #email-box div[data-testid="stTextInput"],
+          #email-box div[data-testid="stPassword"] {{
+            display:inline-block !important;
+            width: 260px !important;
             max-width: 260px !important;
+          }}
+          #email-box div[data-testid="stTextInput"] input,
+          #email-box div[data-testid="stPassword"] input {{
+            width: 240px !important;
+            max-width: 240px !important;
+            padding: 6px 10px !important;
+          }}
+          /* segunda coluna (Envio opcional) também compacta */
+          #email-box .col-envio div[data-testid="stTextInput"] {{
+            width: 300px !important; max-width:300px !important;
+          }}
+          #email-box .col-envio div[data-testid="stTextInput"] input {{
+            width: 280px !important; max-width:280px !important;
           }}
         </style>
         """,
@@ -102,20 +87,15 @@ def _import_sheets():
     except Exception as e:
         raise RuntimeError(
             "Não foi possível carregar 'services.sheets'. "
-            "Verifique as credenciais (SHEET_ID, GCP_CREDENTIALS_PATH) e o módulo no repositório."
+            "Verifique as credenciais (SHEET_ID, GCP_CREDENTIALS_PATH) e o módulo."
         ) from e
 
 # ======================================================================================
 #                                      UTILIDADES
 # ======================================================================================
-def msg_ok(texto: str):
-    st.success(texto, icon="✅")
-
-def msg_erro(texto: str):
-    st.error(texto, icon="❌")
-
-def msg_info(texto: str):
-    st.info(texto, icon="ℹ️")
+def msg_ok(texto: str): st.success(texto, icon="✅")
+def msg_erro(texto: str): st.error(texto, icon="❌")
+def msg_info(texto: str): st.info(texto, icon="ℹ️")
 
 def _normalize_pair(p: str) -> str:
     p = (p or "").strip().upper().replace(" ", "")
@@ -139,98 +119,100 @@ abas = st.tabs(["E-mail", "Moedas", "Entrada", "Saída", "Estado"])
 with abas[0]:
     st.subheader("Configurações de e-mail")
 
-    # Estados salvos em sessão
     st.session_state.setdefault("MAIL_USER", "")
     st.session_state.setdefault("MAIL_APP_PASSWORD", "")
     st.session_state.setdefault("MAIL_TO", "")
 
-    # Contêiner com id para estilizar inputs (menores)
     st.markdown('<div id="email-box">', unsafe_allow_html=True)
 
-    col1, spacer, col2 = st.columns([1, 0.2, 1])
+    col1, spacer, col2 = st.columns([1, 0.1, 1])
     with col1:
         st.session_state["MAIL_USER"] = st.text_input(
-            "Principal", value=st.session_state["MAIL_USER"], placeholder="seu-email@gmail.com"
+            "Principal",
+            value=st.session_state["MAIL_USER"],
+            placeholder="seu-email@gmail.com",
         )
         st.session_state["MAIL_APP_PASSWORD"] = st.text_input(
-            "Senha (app password)", value=st.session_state["MAIL_APP_PASSWORD"], type="password"
+            "Senha (app password)",
+            value=st.session_state["MAIL_APP_PASSWORD"],
+            type="password",
         )
     with col2:
+        st.markdown('<div class="col-envio">', unsafe_allow_html=True)
         st.session_state["MAIL_TO"] = st.text_input(
-            "Envio (opcional)", value=st.session_state["MAIL_TO"], placeholder="destinatario@dominio.com"
+            "Envio (opcional)",
+            value=st.session_state["MAIL_TO"],
+            placeholder="destinatario@dominio.com",
         )
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------------------- Envio real de e-mail + salvamento ----------------------
-    def _enviar_email_teste(user: str, app_pw: str, para: str | None) -> tuple[str, str]:
+    def _enviar_email_teste(user: str, app_pw: str, para: str | None) -> tuple[list[str], str]:
         """
-        Envia um e-mail de teste via Gmail.
-        Retorna (destinatario_utilizado, rota_usada).
+        Envia e-mail de teste via Gmail.
+        Retorna (lista_destinatários_efetivos, rota_usada).
+        Além do 'para' informado, envia cópia ao próprio 'user'.
         """
         if not user or not app_pw:
             raise ValueError("Preencha o e-mail principal e a senha (app password).")
-        dest = para.strip() if para and para.strip() else user
+
+        destino = para.strip() if para and para.strip() else user
+        to_list = list({destino, user})  # garante cópia para o Gmail principal
 
         msg = EmailMessage()
         msg["Subject"] = "Teste — Automação Cripto"
         msg["From"] = user
-        msg["To"] = dest
-        msg["Reply-To"] = user
+        msg["To"] = destino
+        if user != destino:
+            msg["Cc"] = user
         msg.set_content(
-            f"Olá!\n\nEste é um e-mail de teste enviado pela Automação Cripto.\n"
+            f"Olá!\n\nE-mail de teste enviado pela Automação Cripto.\n"
             f"Horário: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-            "Se você recebeu, o envio está OK. ;)"
+            "Se chegou, o envio está OK."
         )
 
-        # 1) Tenta SSL 465
+        # 1) SSL 465
         try:
             with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=25) as smtp:
                 smtp.login(user, app_pw)
-                smtp.send_message(msg)
-            return dest, "SSL 465"
+                smtp.send_message(msg, from_addr=user, to_addrs=to_list)
+            return to_list, "SSL 465"
         except Exception as e_ssl:
-            # 2) Fallback TLS 587 (starttls)
+            # 2) fallback TLS 587
             try:
                 with smtplib.SMTP("smtp.gmail.com", 587, timeout=25) as smtp:
-                    smtp.ehlo()
-                    smtp.starttls()
-                    smtp.ehlo()
+                    smtp.ehlo(); smtp.starttls(); smtp.ehlo()
                     smtp.login(user, app_pw)
-                    smtp.send_message(msg)
-                return dest, "TLS 587"
+                    smtp.send_message(msg, from_addr=user, to_addrs=to_list)
+                return to_list, "TLS 587"
             except Exception as e_tls:
                 raise RuntimeError(
                     "Falha nos dois métodos (SSL:465 e TLS:587).\n\n"
                     f"Erro SSL: {e_ssl}\n\nErro TLS: {e_tls}"
                 )
 
-    # Botão
     if st.button("ENVIAR / SALVAR", type="primary"):
-        # Sempre salvamos em sessão
         user = (st.session_state["MAIL_USER"] or "").strip()
         app_pw = (st.session_state["MAIL_APP_PASSWORD"] or "").strip()
         para = (st.session_state["MAIL_TO"] or "").strip()
 
-        # Mensagem de salvamento
         msg_ok("Dados de e-mail armazenados na sessão.")
-
-        # Tentamos enviar o e-mail de teste
         try:
-            destinatario, rota = _enviar_email_teste(user, app_pw, para)
-            msg_ok(f"E-mail de teste enviado via **{rota}** para **{destinatario}**.")
-            st.caption("Obs.: verifique também a caixa **Spam/Lixo** (Hotmail/Outlook costuma segurar testes).")
+            destinatarios, rota = _enviar_email_teste(user, app_pw, para)
+            msg_ok(f"E-mail de teste enviado via **{rota}** para: {', '.join(destinatarios)}.")
+            st.caption("Obs.: verifique também Spam/Lixo (Hotmail/Outlook costuma segurar testes).")
         except Exception as e:
             msg_erro(
-                "Falha ao enviar o e-mail de teste. "
-                "Confira se o **App Password** (senha de app) do Gmail está correto, "
-                "se a conta tem **Verificação em 2 etapas** ativa, e se o e-mail principal está certo."
+                "Falha ao enviar. Confirme **App Password** (senha de app) do Gmail, "
+                "verificação em 2 etapas e o e-mail principal."
             )
-            with st.expander("Detalhes técnicos (para diagnóstico)"):
+            with st.expander("Detalhes técnicos"):
                 st.code("".join(traceback.format_exception_only(type(e), e)))
 
     st.caption(
-        "Dica: para Gmail, é **obrigatório** usar *App Password* (senha de app). "
+        "Para Gmail é **obrigatório** usar *App Password* (senha de app). "
         "Conta → Segurança → Verificação em duas etapas → Senhas de app."
     )
 
@@ -251,8 +233,7 @@ with abas[1]:
 
     def _recarregar_da_planilha():
         get_moedas, _ = _import_sheets_guard()
-        if not get_moedas:
-            return
+        if not get_moedas: return
         try:
             lista = get_moedas()
             norm = sorted({_normalize_pair(x) for x in lista if _normalize_pair(x)})
@@ -263,8 +244,7 @@ with abas[1]:
 
     def _salvar_em_planilha():
         _, save_moedas = _import_sheets_guard()
-        if not save_moedas:
-            return
+        if not save_moedas: return
         try:
             payload = [{"par": p, "filtro": "Top10", "peso": 1} for p in st.session_state.moedas_lista]
             save_moedas(payload)
@@ -280,11 +260,10 @@ with abas[1]:
             if novos.strip():
                 itens = [_normalize_pair(x) for x in novos.split(",")]
                 itens = [x for x in itens if x]
-                base = set(st.session_state.moedas_lista)
-                base.update(itens)
+                base = set(st.session_state.moedas_lista); base.update(itens)
                 st.session_state.moedas_lista = sorted(base)
             else:
-                msg_info("Digite pelo menos um símbolo (ex.: BTC, ETH, SOL).")
+                msg_info("Digite pelo menos um símbolo.")
     with c3:
         if st.button("Recarregar da planilha", use_container_width=True):
             _recarregar_da_planilha()
@@ -300,7 +279,7 @@ with abas[1]:
                 restante = [x for x in st.session_state.moedas_lista if x not in set(selec)]
                 st.session_state.moedas_lista = restante
             else:
-                msg_info("Nenhuma moeda selecionada para remover.")
+                msg_info("Nenhuma moeda selecionada.")
     with c5:
         if st.button("Salvar Moedas", use_container_width=True, type="primary"):
             _salvar_em_planilha()
@@ -315,7 +294,6 @@ with abas[1]:
 # --------------------------------------------------------------------------------------
 with abas[2]:
     st.subheader("Regras de Entrada")
-
     colA, colB, colC = st.columns([1, 1, 1])
     with colA:
         risco = st.number_input("Risco por trade (%)", value=1.00, step=0.05, format="%.2f")
@@ -326,7 +304,6 @@ with abas[2]:
         fonte = st.text_input("Fonte do sinal (ex.: binance, tradingview)")
     with colC:
         spread = st.number_input("Spread máximo (%)", value=0.20, step=0.05, format="%.2f")
-
     st.info("Espaço reservado para calcular/validar entradas.")
 
 # --------------------------------------------------------------------------------------
@@ -334,8 +311,7 @@ with abas[2]:
 # --------------------------------------------------------------------------------------
 with abas[3]:
     st.subheader("Gestão de Saída")
-
-    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         alvo1 = st.number_input("Alvo 1 (%)", value=1.00, step=0.10, format="%.2f")
         alvo2 = st.number_input("Alvo 2 (%)", value=2.00, step=0.10, format="%.2f")
@@ -345,7 +321,6 @@ with abas[3]:
         modo = st.selectbox("Modo à direita", ["Desligado", "Trail %", "Trail ATR"])
     with c4:
         direita = st.number_input("À direita (%)", value=0.50, step=0.05, format="%.2f")
-
     breakeven = st.checkbox("Break-even automático")
     st.info("Aqui depois conectamos a lógica de execução/fechamento.")
 
@@ -354,7 +329,6 @@ with abas[3]:
 # --------------------------------------------------------------------------------------
 with abas[4]:
     st.subheader("Estado / Monitor")
-
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.metric("Negociações abertas", value=0)
@@ -365,5 +339,4 @@ with abas[4]:
         st.metric("Sinais pendentes", value=0)
     with c4:
         st.metric("Erros", value=0)
-
     st.info("Logs e status em tempo real virão aqui.")
