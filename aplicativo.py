@@ -1,9 +1,9 @@
 # ======================================================================
 #  Automação Cripto — aplicativo.py (arquivo completo)
-#  - set_page_config chamado 1x e como 1º comando
-#  - Títulos/labels/abas em laranja
-#  - Aba E-mail com inputs menores + envio real de e-mail (Gmail app password)
-#  - Demais abas preservadas
+#  Revisões:
+#   - Inputs da aba E-mail bem menores (largura ~300px)
+#   - Envio de e-mail robusto: tenta SSL:465 e fallback TLS:587 (starttls)
+#   - Abas/títulos em laranja (estilo mantido)
 # ======================================================================
 
 from __future__ import annotations
@@ -73,21 +73,18 @@ def _aplicar_tema_global():
           }}
 
           /* ---------- Inputs menores apenas na seção de e-mail ---------- */
-          #email-box [data-testid="stTextInput"] {{
-            width: 390px !important;       /* container */
-            max-width: 390px !important;
+          #email-box [data-testid="stTextInput"],
+          #email-box [data-testid="stPassword"] {{
+            width: 320px !important;       /* container */
+            max-width: 320px !important;
           }}
           #email-box [data-testid="stTextInput"] input {{
-            width: 380px !important;       /* campo de digitação */
-            max-width: 380px !important;
-          }}
-          #email-box [data-testid="stPassword"] {{
-            width: 390px !important;
-            max-width: 390px !important;
+            width: 300px !important;       /* campo de digitação */
+            max-width: 300px !important;
           }}
           #email-box [data-testid="stPassword"] input {{
-            width: 340px !important;  /* ligeiramente menor p/ ícone olho */
-            max-width: 340px !important;
+            width: 260px !important;       /* menor por causa do ícone 'olho' */
+            max-width: 260px !important;
           }}
         </style>
         """,
@@ -147,7 +144,7 @@ with abas[0]:
     st.session_state.setdefault("MAIL_APP_PASSWORD", "")
     st.session_state.setdefault("MAIL_TO", "")
 
-    # Agrupamos em um contêiner com id para estilizar inputs (menores)
+    # Contêiner com id para estilizar inputs (menores)
     st.markdown('<div id="email-box">', unsafe_allow_html=True)
 
     col1, spacer, col2 = st.columns([1, 0.2, 1])
@@ -166,8 +163,11 @@ with abas[0]:
     st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------------------- Envio real de e-mail + salvamento ----------------------
-    def _enviar_email_teste(user: str, app_pw: str, para: str | None):
-        """Envia um e-mail de teste via Gmail (app password)."""
+    def _enviar_email_teste(user: str, app_pw: str, para: str | None) -> tuple[str, str]:
+        """
+        Envia um e-mail de teste via Gmail.
+        Retorna (destinatario_utilizado, rota_usada).
+        """
         if not user or not app_pw:
             raise ValueError("Preencha o e-mail principal e a senha (app password).")
         dest = para.strip() if para and para.strip() else user
@@ -176,45 +176,62 @@ with abas[0]:
         msg["Subject"] = "Teste — Automação Cripto"
         msg["From"] = user
         msg["To"] = dest
+        msg["Reply-To"] = user
         msg.set_content(
             f"Olá!\n\nEste é um e-mail de teste enviado pela Automação Cripto.\n"
             f"Horário: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
             "Se você recebeu, o envio está OK. ;)"
         )
 
-        # SMTP Gmail — preferimos SSL 465 para simplificar
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=20) as smtp:
-            smtp.login(user, app_pw)
-            smtp.send_message(msg)
-
-        return dest
+        # 1) Tenta SSL 465
+        try:
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=25) as smtp:
+                smtp.login(user, app_pw)
+                smtp.send_message(msg)
+            return dest, "SSL 465"
+        except Exception as e_ssl:
+            # 2) Fallback TLS 587 (starttls)
+            try:
+                with smtplib.SMTP("smtp.gmail.com", 587, timeout=25) as smtp:
+                    smtp.ehlo()
+                    smtp.starttls()
+                    smtp.ehlo()
+                    smtp.login(user, app_pw)
+                    smtp.send_message(msg)
+                return dest, "TLS 587"
+            except Exception as e_tls:
+                raise RuntimeError(
+                    "Falha nos dois métodos (SSL:465 e TLS:587).\n\n"
+                    f"Erro SSL: {e_ssl}\n\nErro TLS: {e_tls}"
+                )
 
     # Botão
     if st.button("ENVIAR / SALVAR", type="primary"):
         # Sempre salvamos em sessão
-        user = st.session_state["MAIL_USER"].strip()
-        app_pw = st.session_state["MAIL_APP_PASSWORD"].strip()
-        para = st.session_state["MAIL_TO"].strip()
+        user = (st.session_state["MAIL_USER"] or "").strip()
+        app_pw = (st.session_state["MAIL_APP_PASSWORD"] or "").strip()
+        para = (st.session_state["MAIL_TO"] or "").strip()
 
         # Mensagem de salvamento
         msg_ok("Dados de e-mail armazenados na sessão.")
 
         # Tentamos enviar o e-mail de teste
         try:
-            destinatario = _enviar_email_teste(user, app_pw, para)
-            msg_ok(f"E-mail de teste enviado para **{destinatario}**.")
+            destinatario, rota = _enviar_email_teste(user, app_pw, para)
+            msg_ok(f"E-mail de teste enviado via **{rota}** para **{destinatario}**.")
+            st.caption("Obs.: verifique também a caixa **Spam/Lixo** (Hotmail/Outlook costuma segurar testes).")
         except Exception as e:
-            # Mostramos erro amigável + dica
             msg_erro(
                 "Falha ao enviar o e-mail de teste. "
-                "Verifique se o **app password** do Gmail está correto e se o e-mail principal está certo."
+                "Confira se o **App Password** (senha de app) do Gmail está correto, "
+                "se a conta tem **Verificação em 2 etapas** ativa, e se o e-mail principal está certo."
             )
             with st.expander("Detalhes técnicos (para diagnóstico)"):
                 st.code("".join(traceback.format_exception_only(type(e), e)))
 
     st.caption(
         "Dica: para Gmail, é **obrigatório** usar *App Password* (senha de app). "
-        "Conta → Segurança → Senhas de app."
+        "Conta → Segurança → Verificação em duas etapas → Senhas de app."
     )
 
 # --------------------------------------------------------------------------------------
