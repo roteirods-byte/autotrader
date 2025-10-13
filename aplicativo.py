@@ -645,30 +645,61 @@ def secao_saida():
             df["pnl_pct"] = df["pnl_pct"].apply(_fmt_pct)
     st.dataframe(df, use_container_width=True, hide_index=True)
 
-# === BLOCO 150 — SEÇÃO: ESTADO/KPIs + PARÂMETROS GLOBAIS ===
+# === BLOCO 151 — HELPERS (Estado) ===
+def _ok(flag: bool) -> str:
+    return "✅ OK" if flag else "❌ OFF"
+
+def _count_rows(title: str, cols: list) -> int:
+    try:
+        df = _read_ws_df(title, cols)
+        return 0 if df.empty else len(df)
+    except Exception:
+        return 0
+
+# === BLOCO 150 — SEÇÃO: ESTADO/KPIs + PARÂMETROS GLOBAIS (ATUALIZADO) ===
 def secao_estado():
     st.subheader("Estado / KPIs")
-    df = _read_ws_df(SHEET_ESTADO, ESTADO_COLS)
-    if df.empty:
-        st.caption("KPIs serão preenchidos automaticamente (futuro).")
-    else:
-        st.dataframe(df, use_container_width=True, hide_index=True)
+
+    # --------- Saúde do sistema ---------
+    cfg  = st.session_state.get("cfg") or load_config()
+    mail = load_email_cfg()
+    sheets_ok = _get_gspread()[1] is not None
+    email_ok  = bool((mail.get("principal") or "").strip() and (mail.get("app_password") or "").strip())
+    try:
+        import ccxt  # noqa
+        ccxt_ok = True
+    except Exception:
+        ccxt_ok = False
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: st.metric("Google Sheets", _ok(sheets_ok))
+    with c2: st.metric("E-mail", _ok(email_ok))
+    with c3: st.metric("ccxt (motores)", _ok(ccxt_ok))
+    with c4: st.metric("Motor automático", cfg.get("auto_engine","ON"))
+
+    st.caption(f"Última atualização (CONFIG): {cfg.get('ultima_atualizacao_iso','—')}")
+
+    # --------- KPIs rápidos ---------
+    k1, k2, k3 = st.columns(3)
+    with k1: st.metric("Sinais (histórico)", _count_rows(SHEET_SINAIS, SINAIS_COLS))
+    with k2: st.metric("Entradas (linhas)", _count_rows(SHEET_ENTRADA, ENTRADA_COLS))
+    with k3: st.metric("Saídas (linhas)", _count_rows(SHEET_SAIDA, SAIDA_COLS))
 
     st.markdown("---")
     st.subheader("Parâmetros Globais")
-    cfg = st.session_state.get("cfg") or load_config()
+
     c1,c2,c3,c4 = st.columns(4)
     with c1:
-        risco = st.text_input("Risco %", cfg.get("risco_pct","1.0"))
-        spread = st.text_input("Spread máx. %", cfg.get("spread_max","0.05"))
+        risco   = st.text_input("Risco %",       cfg.get("risco_pct","1.0"))
+        spread  = st.text_input("Spread máx. %", cfg.get("spread_max","0.05"))
     with c2:
-        alav = st.text_input("Alavancagem (x)", cfg.get("alavancagem","5"))
-        slip = st.text_input("Slippage máx. %", cfg.get("slippage_max","0.05"))
+        alav    = st.text_input("Alavancagem (x)", cfg.get("alavancagem","5"))
+        slip    = st.text_input("Slippage máx. %", cfg.get("slippage_max","0.05"))
     with c3:
-        plalvo = st.text_input("PL alvo %", cfg.get("pl_alvo_pct","6.00"))
+        plalvo  = st.text_input("PL alvo %", cfg.get("pl_alvo_pct","6.00"))
         funding = st.selectbox("Filtro Funding", ["ON","OFF"], index=0 if cfg.get("funding_filtro","OFF")=="ON" else 1)
     with c4:
-        fuso = st.text_input("Fuso horário", cfg.get("fuso", APP_TZ))
+        fuso        = st.text_input("Fuso horário", cfg.get("fuso", APP_TZ))
         auto_engine = st.selectbox("Motor automático", ["ON","OFF"], index=0 if cfg.get("auto_engine","ON")=="ON" else 1)
         st.write("")
         if st.button("Aplicar/Salvar", key="btn_cfg_salvar"):
@@ -686,7 +717,7 @@ def secao_estado():
             save_config(new_cfg)
             st.session_state["cfg"] = new_cfg
             st.success("Parâmetros salvos.", icon="✅")
-    st.caption(f"Última atualização: {(st.session_state.get('cfg') or cfg).get('ultima_atualizacao_iso','—')}")
+
 
 # === BLOCO 160 — SCHEDULER (auto-refresh 10 min + motor opcional) ===
 def _tick_auto():
