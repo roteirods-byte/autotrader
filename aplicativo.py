@@ -66,7 +66,7 @@ COINS_PROJETO: List[str] = [
 def _now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat()
 
-# === BLOCO 020 — GOOGLE SHEETS (conexão/util) ===
+# === BLOCO 020 — GOOGLE SHEETS (conexão/util) — FIX HEADER NÃO EXCLUSIVO ===
 @st.cache_resource(show_spinner=False)
 def _get_gspread():
     """Conecta no Google Sheets via Service Account."""
@@ -102,22 +102,60 @@ def _get_ws(title: str, header: List[str]):
     try:
         ws = sh.worksheet(title)
     except Exception:
+        # cria worksheet com cabeçalho correto
         ws = sh.add_worksheet(title=title, rows="2", cols=str(max(6, len(header))))
         ws.update("A1", [header])
     return ws
 
+def _ensure_header(ws, header: List[str]):
+    """Garante que a linha 1 tem exatamente o cabeçalho esperado (corrige duplicados/vazios)."""
+    try:
+        vals = ws.get_values("1:1") or [[]]
+        cur = [c.strip().lower() for c in (vals[0] if vals else [])]
+        need_fix = (len(cur) < len(header)) or any(cur[i] if i < len(cur) else "" != header[i] for i in range(len(header)))
+        if need_fix:
+            ws.update("A1", [header])
+    except Exception:
+        # como fallback, tenta escrever mesmo assim
+        try:
+            ws.update("A1", [header])
+        except Exception:
+            pass
+
 def _read_ws_df(title: str, header: List[str]) -> pd.DataFrame:
+    """
+    Lê de forma tolerante:
+    - Usa get_all_values (não exige cabeçalho exclusivo)
+    - Ajusta colunas para 'header'
+    """
     ws = _get_ws(title, header)
     if ws is None:
         return pd.DataFrame(columns=header)
-    records = ws.get_all_records()  # cabeçalho na linha 1
-    df = pd.DataFrame(records)
-    for c in header:
-        if c not in df.columns:
-            df[c] = ""
-    if df.empty:
+    try:
+        _ensure_header(ws, header)
+        values = ws.get_all_values()  # lista de listas
+    except Exception:
         return pd.DataFrame(columns=header)
-    df = df[header]
+
+    if not values:
+        return pd.DataFrame(columns=header)
+
+    # primeira linha é o cabeçalho atual (ignorar duplicidade)
+    rows = values[1:] if len(values) > 1 else []
+    if not rows:
+        return pd.DataFrame(columns=header)
+
+    # monta DF e força o schema esperado
+    df = pd.DataFrame(rows)
+    # corta/expande até o número de colunas do header
+    if df.shape[1] >= len(header):
+        df = df.iloc[:, :len(header)]
+    else:
+        for _ in range(len(header) - df.shape[1]):
+            df[df.shape[1]] = ""
+    df.columns = header
+
+    # remove linhas 100% vazias
     df = df[~(df.replace("", pd.NA).isna().all(axis=1))].reset_index(drop=True)
     return df
 
@@ -125,6 +163,7 @@ def _write_ws_df(title: str, df: pd.DataFrame, header: List[str]):
     ws = _get_ws(title, header)
     if ws is None:
         return
+    _ensure_header(ws, header)
     for c in header:
         if c not in df.columns:
             df[c] = ""
@@ -137,11 +176,12 @@ def _append_ws_rows(title: str, rows: List[List[str]], header: List[str]):
     ws = _get_ws(title, header)
     if ws is None or not rows:
         return
-    # garante header
+    _ensure_header(ws, header)
     existing = ws.get_all_values()
     if not existing:
         ws.update("A1", [header])
     ws.append_rows(rows)
+# === FIM BLOCO 020 FIX ===
 
 # === BLOCO 030 — EMAIL (config + envio) ===
 def load_email_cfg() -> dict:
