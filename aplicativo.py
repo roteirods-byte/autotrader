@@ -18,13 +18,10 @@ st.markdown("""
  h1, h2, h3, .stTabs [data-baseweb="tab"] p { color:#ffa41b !important; }
  .stTabs [data-baseweb="tab-list"]{ border-bottom:1px solid rgba(255,255,255,.08); }
 
- /* caixas iguais (fundo um pouco mais claro) */
+ /* caixas com fundo igual (um pouco mais claro) */
  .stTextInput>div>div{ background:#1e293b !important; border:1px solid rgba(255,255,255,.18);
                        border-radius:10px; }
  .stTextInput input{ color:#ffffff !important; }
-
- /* reduzir LARGURA das entradas para ~50% do espaço da coluna */
- .stTextInput input{ width:50% !important; }
 
  /* botão laranja */
  .stButton>button{
@@ -34,7 +31,6 @@ st.markdown("""
  .stButton>button:hover{ filter:brightness(1.05); }
 </style>
 """, unsafe_allow_html=True)
-
 
 
 # ---------- PARÂMETROS ----------
@@ -204,29 +200,40 @@ def secao_email():
     st.subheader("Configurações de e-mail")
     cfg = st.session_state.get("email_cfg") or load_email_cfg()
 
-    # três campos alinhados + botão
+    # Três campos com ~50% da largura (meia-coluna cada)
     c1, c2, c3, c4 = st.columns([1.2, 1.2, 1.2, 0.8])
+
     with c1:
-        principal = st.text_input("principal", value=cfg.get("principal",""), key="email_principal")
+        s1, _ = st.columns([1,1])
+        with s1:
+            st.text_input("principal", value=cfg.get("principal",""), key="email_principal")
+
     with c2:
-        app_password = st.text_input("senha (app password)", value=cfg.get("app_password",""),
-                                     type="password", key="email_pass")
+        s2, _ = st.columns([1,1])
+        with s2:
+            st.text_input("senha (app password)", value=cfg.get("app_password",""),
+                          type="password", key="email_pass")
+
     with c3:
-        envio = st.text_input("Envio (opcional)", value=cfg.get("envio",""), key="email_envio")
+        s3, _ = st.columns([1,1])
+        with s3:
+            st.text_input("Envio (opcional)", value=cfg.get("envio",""), key="email_envio")
+
     with c4:
         st.markdown("&nbsp;")
         if st.button("TESTAR/SALVAR"):
-            new_cfg = {
-                "principal": (st.session_state.get("email_principal") or "").strip(),
-                "app_password": (st.session_state.get("email_pass") or "").strip(),
-                "envio": (st.session_state.get("email_envio") or "").strip(),
-                "ultimo_teste_iso": ""
-            }
-            ok, msg = send_test_email(new_cfg)
+            principal = (st.session_state.get("email_principal") or "").strip()
+            senha     = (st.session_state.get("email_pass") or "").strip()
+            envio     = (st.session_state.get("email_envio") or "").strip() or principal
+
+            novo = {"principal": principal, "app_password": senha,
+                    "envio": envio, "ultimo_teste_iso": ""}
+
+            ok, msg = send_test_email(novo)
             if ok:
-                new_cfg["ultimo_teste_iso"] = _now_iso()
-                save_email_cfg(new_cfg)
-                st.session_state["email_cfg"] = new_cfg
+                novo["ultimo_teste_iso"] = _now_iso()
+                save_email_cfg(novo)
+                st.session_state["email_cfg"] = novo
                 st.success("E-mail enviado e dados salvos.", icon="✅")
             else:
                 st.error("Não foi possível enviar. Confira os dados e tente novamente.")
