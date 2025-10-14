@@ -9,7 +9,7 @@ from typing import List, Tuple
 from datetime import datetime, timezone
 import pandas as pd
 import streamlit as st
-
+from zoneinfo import ZoneInfo
 # ---------- TEMA ----------
 st.set_page_config(page_title="Interface do projeto", layout="wide")
 st.markdown("""
@@ -19,9 +19,19 @@ st.markdown("""
  h1, h2, h3, .stTabs [data-baseweb="tab"] p, .stTextInput label { color:#ffa41b !important; }
  .stTabs [data-baseweb="tab-list"]{ border-bottom:1px solid rgba(255,255,255,.08); }
 
- /* caixas iguais e fundo mais claro */
+ /* esconder o aviso 'Pressione Enter...' */
+ [data-testid="stInputInstructions"],
+ [data-testid="InputInstructions"],
+ .stTextInput small { display:none !important; }
+
+ /* caixas com fundo igual e borda */
  .stTextInput>div>div{ background:#1e293b !important; border:1px solid rgba(255,255,255,.18); border-radius:10px; }
  .stTextInput input{ color:#ffffff !important; }
+
+ /* comprimentos das 3 caixas (~um pouco maior que o texto) */
+ input[aria-label="principal"]{ width:28ch !important; }
+ input[aria-label="senha (app password)"]{ width:22ch !important; }
+ input[aria-label="Envio (opcional)"], input[aria-label="envio"]{ width:28ch !important; }
 
  /* botão laranja */
  .stButton>button, .stForm button{
@@ -31,6 +41,7 @@ st.markdown("""
  .stButton>button:hover, .stForm button:hover{ filter:brightness(1.05); }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 # ---------- PARÂMETROS ----------
@@ -157,21 +168,28 @@ def load_email_cfg() -> dict:
 def save_email_cfg(cfg: dict):
     _write_ws_df(SHEET_EMAIL, pd.DataFrame([cfg], columns=EMAIL_COLS), EMAIL_COLS)
 
-def send_test_email(cfg: dict) -> Tuple[bool,str]:
+def send_test_email(cfg: dict) -> Tuple[bool, str]:
     try:
-        user = cfg.get("principal","").strip()
-        pwd  = cfg.get("app_password","").strip()
+        user = (cfg.get("principal") or "").strip()
+        pwd  = (cfg.get("app_password") or "").strip()
         to   = (cfg.get("envio") or user).strip()
-        if not (user and pwd and to): return False, "Preencha os 3 campos e clique TESTAR/SALVAR."
+        if not (user and pwd and to):
+            return False, "Preencha principal, senha e envio."
+        # data/hora local (America/Sao_Paulo) e só HH:MM
+        agora = datetime.now(ZoneInfo(APP_TZ))
+        corpo = f"teste ok - {agora.strftime('%d/%m/%Y')} - {agora.strftime('%H:%M')}"
         msg = EmailMessage()
         msg["Subject"] = "Teste — Autotrader"
-        msg["From"] = user; msg["To"] = to
-        msg.set_content(f"Teste OK ({_now_iso()})")
+        msg["From"] = user
+        msg["To"] = to
+        msg.set_content(corpo)
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl.create_default_context()) as s:
-            s.login(user, pwd); s.send_message(msg)
+            s.login(user, pwd)
+            s.send_message(msg)
         return True, f"Enviado para {to}"
     except Exception as e:
         return False, f"Erro no envio: {e}"
+
 
 # ---------- MOEDAS ----------
 def load_coins() -> List[str]:
