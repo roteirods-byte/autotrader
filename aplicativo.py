@@ -92,18 +92,37 @@ def _now_iso() -> str:
 
 @st.cache_resource
 def _gs_client():
-    """Autentica no Google Sheets via JSON no env GCP_CREDENTIALS_JSON."""
-    creds_json = os.getenv("GCP_CREDENTIALS_JSON", "")
+    """Autentica no Google Sheets.
+    Aceita:
+      - GCP_CREDENTIALS_JSON  (conteúdo do JSON colado na variável)
+      - GCP_CREDENTIALS_PATH  (nome do arquivo secreto no Render, ex.: noted-....json)
+    """
+    creds_json = (os.getenv("GCP_CREDENTIALS_JSON") or "").strip()
+
+    # Se não veio JSON por variável, tenta arquivo secreto
     if not creds_json:
-        raise RuntimeError("GCP_CREDENTIALS_JSON não configurado.")
+        path = (os.getenv("GCP_CREDENTIALS_PATH") or "").strip()
+        if path:
+            # Se veio só o nome do arquivo, use a pasta padrão de secrets do Render
+            full = path if path.startswith("/") else f"/etc/secrets/{path}"
+            try:
+                with open(full, "r", encoding="utf-8") as f:
+                    creds_json = f.read()
+            except Exception as e:
+                raise RuntimeError(f"Não foi possível ler a chave do Google em {full}: {e}")
+
+    if not creds_json:
+        raise RuntimeError("Credencial do Google ausente. Configure GCP_CREDENTIALS_JSON ou GCP_CREDENTIALS_PATH.")
+
+    # Parse robusto do JSON (aceita escapes)
     try:
         data = json.loads(creds_json)
     except Exception:
-        # se veio com quebras/escapes, tenta normalizar
         data = json.loads(creds_json.encode("utf-8").decode("unicode_escape"))
+
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
+        "https://www.googleapis.com/auth/drive",
     ]
     creds = Credentials.from_service_account_info(data, scopes=scopes)
     return gspread.Client(auth=creds)
