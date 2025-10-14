@@ -1,4 +1,4 @@
-# aplicativo.py — substitua todo o arquivo por este
+# aplicativo.py — cole tudo este arquivo
 
 import os
 import json
@@ -7,6 +7,7 @@ from typing import Tuple, List, Dict
 
 import streamlit as st
 import pandas as pd
+import re
 
 # ====== Fuso / versão do app ======
 from zoneinfo import ZoneInfo
@@ -43,7 +44,7 @@ st.markdown("""
  h1, h2, h3, .stTabs [data-baseweb="tab"] p, .stTextInput label { color:#ffa41b !important; }
  .stTabs [data-baseweb="tab-list"]{ border-bottom:1px solid rgba(255,255,255,.08); }
 
- /* esconder qualquer “Pressione Enter…” / instrução automatica */
+ /* esconder instruções automáticas */
  [data-testid="stInputInstructions"],
  .stTextInput small,
  .stForm [data-testid="stInputInstructions"],
@@ -57,21 +58,22 @@ st.markdown("""
  }
  .stTextInput>div>div:focus-within{ outline:1px solid #334155 !important; }
  .stTextInput input{ width:100% !important; color:#fff !important; padding:8px 12px; }
+ #email-row input:focus{ outline:none !important; box-shadow:none !important; }
 
- /* ESCOPO DO PAINEL DE E-MAIL — garante 250px reais e gap menor */
+ /* ESCOPO DO PAINEL DE E-MAIL */
  #email-row .stColumns{ gap:12px !important; }
- #email-row .stTextInput>div>div{ width:250px !important; max-width:250px !important; }
- #email-row .stTextInput [data-baseweb="input"]{ width:250px !important; max-width:250px !important; }
+ #email-row .fix250 .stTextInput>div>div{ width:250px !important; max-width:250px !important; }
+ #email-row .fix250 [data-baseweb="input"]{ width:250px !important; max-width:250px !important; }
 
  /* botão laranja com mesma altura */
  .stButton>button{
    background:#ffa41b !important; color:#0f172a !important; border:0 !important;
-   border-radius:14px; font-weight:700; height:40px;
+   border-radius:14px; font-weight:700; height:40px; padding:0 16px;
  }
  .stButton>button:hover{ filter:brightness(1.05); }
 
  /* faixa de sucesso compacta */
- .stAlert{ padding:10px 14px !important; border-radius:10px !important; }
+ .stAlert{ padding:10px 14px !important; border-radius:10px !important; width:max-content; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -83,14 +85,14 @@ def _now_local() -> datetime:
 def _now_iso() -> str:
     return _now_local().isoformat()
 
+def _is_email(s: str) -> bool:
+    if not s: return False
+    return re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", s) is not None
+
 
 @st.cache_resource
 def _gs_client():
-    """Autentica no Google Sheets.
-    Aceita:
-      - GCP_CREDENTIALS_JSON  (conteúdo do JSON colado na variável)
-      - GCP_CREDENTIALS_PATH  (nome do arquivo secreto no Render, ex.: noted-....json)
-    """
+    """Autentica no Google Sheets (JSON em env ou arquivo secreto)."""
     creds_json = (os.getenv("GCP_CREDENTIALS_JSON") or "").strip()
     if not creds_json:
         path = (os.getenv("GCP_CREDENTIALS_PATH") or "").strip()
@@ -210,23 +212,46 @@ def secao_email():
         cfg = load_email_cfg()
         st.session_state["email_principal"] = cfg.get("principal","")
         st.session_state["email_pass"]     = cfg.get("app_password","")
-        st.session_state["email_envio"]    = cfg.get("envio","")
+        # auto-preenche envio com principal, se vazio
+        st.session_state["email_envio"]    = (cfg.get("envio") or cfg.get("principal") or "")
+
+    # último teste (para exibir ao lado do título do bloco)
+    cfg_tmp = {
+        "ultimo_teste_iso": load_email_cfg().get("ultimo_teste_iso","")
+    }
+    colt1, colt2 = st.columns([6,1])
+    with colt2:
+        if cfg_tmp["ultimo_teste_iso"]:
+            try:
+                dt = datetime.fromisoformat(cfg_tmp["ultimo_teste_iso"]).astimezone(ZoneInfo(APP_TZ))
+                st.caption(f"último: {dt.strftime('%H:%M')}")
+            except Exception:
+                pass
 
     # container identificado para CSS escopado (#email-row)
     st.markdown('<div id="email-row">', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns([1, 1, 1, 0.7])
 
     with c1:
+        st.markdown('<div class="fix250">', unsafe_allow_html=True)
         principal = st.text_input("principal", value=st.session_state.get("email_principal",""))
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with c2:
+        st.markdown('<div class="fix250">', unsafe_allow_html=True)
         senha = st.text_input("senha", value=st.session_state.get("email_pass",""), type="password")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with c3:
+        st.markdown('<div class="fix250">', unsafe_allow_html=True)
         envio = st.text_input("envio", value=st.session_state.get("email_envio",""))
+        st.markdown('</div>', unsafe_allow_html=True)
+        # dica de validação simples
+        if envio and not _is_email(envio):
+            st.markdown("<span style='color:#f87171;'>e-mail inválido</span>", unsafe_allow_html=True)
 
     with c4:
-        ready = bool((principal or "").strip() and (senha or "").strip())
+        ready = bool((principal or "").strip() and (senha or "").strip() and (not envio or _is_email(envio)))
         enviar = st.button("TESTAR/SALVAR", disabled=not ready)
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -246,9 +271,9 @@ def secao_email():
             st.session_state["email_principal"] = cfg["principal"]
             st.session_state["email_pass"] = cfg["app_password"]
             st.session_state["email_envio"] = cfg["envio"]
-            col_ok, _ = st.columns([1,3])   # mensagem mais curta (não ocupa toda a largura)
+            col_ok, _ = st.columns([1,3])
             with col_ok:
-                st.success(f"E-mail enviado e dados salvos. {agora.strftime('%H:%M')}", icon="✅")
+                st.success(f"✔ Enviado às {agora.strftime('%H:%M')}", icon="✅")
         else:
             st.error("Não foi possível enviar. Confira os dados e tente novamente.")
             st.caption(msg)
