@@ -18,19 +18,14 @@ st.markdown("""
  h1, h2, h3, .stTabs [data-baseweb="tab"] p, .stTextInput label { color:#ffa41b !important; }
  .stTabs [data-baseweb="tab-list"]{ border-bottom:1px solid rgba(255,255,255,.08); }
 
- /* remover avisos "Pressione Enter ..." em qualquer input/form */
- [data-testid="stInputInstructions"],
- .stTextInput small,
- .stForm [data-testid="stInputInstructions"],
- .stForm small,
+ /* esconder 'Pressione Enter...' em qualquer campo */
+ [data-testid="stInputInstructions"], .stTextInput small, .stForm [data-testid="stInputInstructions"], .stForm small,
  .stTextInput div[aria-live="polite"] { display:none !important; }
 
- /* caixas com fundo/borda iguais */
- .stTextInput>div>div{
-   background:#1e293b !important; border:1px solid rgba(255,255,255,.18); border-radius:10px;
- }
+ /* caixas iguais (fundo/borda) */
+ .stTextInput>div>div{ background:#1e293b !important; border:1px solid rgba(255,255,255,.18); border-radius:10px; }
 
- /* LARGURA FIXA REAL = 250px (contêiner + input) para TODAS as três caixas */
+ /* 3 caixas com LARGURA FIXA REAL = 250px (container + input) */
  .stTextInput:has(input[aria-label="principal"]) > div > div,
  .stTextInput:has(input[aria-label="senha"])     > div > div,
  .stTextInput:has(input[aria-label="envio"])     > div > div { width:250px !important; max-width:250px !important; }
@@ -39,8 +34,8 @@ st.markdown("""
  .stTextInput:has(input[aria-label="envio"])     [data-baseweb="input"] { width:250px !important; max-width:250px !important; }
  .stTextInput input{ width:100% !important; color:#fff !important; }
 
- /* diminuir e uniformizar o espaçamento entre as três colunas do formulário */
- .stForm .stColumns{ gap: 14px !important; }
+ /* espaçamento SIMÉTRICO e curto entre as três colunas do formulário */
+ .stForm .stColumns{ gap:14px !important; }
 
  /* botão laranja */
  .stButton>button, .stForm button{
@@ -50,6 +45,7 @@ st.markdown("""
  .stButton>button:hover, .stForm button:hover{ filter:brightness(1.05); }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 
@@ -226,9 +222,9 @@ def save_config(cfg: dict):
 def secao_email():
     st.subheader("Configurações de e-mail")
 
-    # colunas simétricas para manter o MESMO espaço entre as caixas
+    # 3 colunas iguais → espaçamento simétrico
     with st.form("email_form"):
-        c1, c2, c3, c4 = st.columns([1, 1, 1, 0.7])  # 3 colunas iguais → espaçamento igual
+        c1, c2, c3, c4 = st.columns([1, 1, 1, 0.7])
 
         with c1:
             principal = st.text_input("principal", value=(st.session_state.get("email_principal") or ""))
@@ -259,6 +255,7 @@ def secao_email():
         else:
             st.error("Não foi possível enviar. Confira os dados e tente novamente.")
             st.caption(msg)
+
 
 
 
