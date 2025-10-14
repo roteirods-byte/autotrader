@@ -1,4 +1,4 @@
-# aplicativo.py — versão completa (cole tudo)
+# aplicativo.py — substitua todo o arquivo por este
 
 import os
 import json
@@ -23,20 +23,16 @@ from google.oauth2.service_account import Credentials
 
 SHEET_ID = os.getenv("SHEET_ID", "").strip()
 
-EMAIL_SHEET = "EMAIL"
-EMAIL_COLS = ["principal", "app_password", "envio", "ultimo_teste_iso"]
-
-MOEDA_SHEET = "MOEDA"
-MOEDA_COLS = ["moeda", "ativo", "criado_em_iso"]
-
+EMAIL_SHEET   = "EMAIL"
+EMAIL_COLS    = ["principal", "app_password", "envio", "ultimo_teste_iso"]
+MOEDA_SHEET   = "MOEDA"
+MOEDA_COLS    = ["moeda", "ativo", "criado_em_iso"]
 ENTRADA_SHEET = "ENTRADA"
-ENTRADA_COLS = ["moeda", "preco", "quantidade", "quando_iso"]
-
-SAIDA_SHEET = "SAIDA"
-SAIDA_COLS = ["moeda", "preco", "quantidade", "quando_iso"]
-
-ESTADO_SHEET = "ESTADO"
-ESTADO_COLS = ["item", "status", "quando_iso"]
+ENTRADA_COLS  = ["moeda", "preco", "quantidade", "quando_iso"]
+SAIDA_SHEET   = "SAIDA"
+SAIDA_COLS    = ["moeda", "preco", "quantidade", "quando_iso"]
+ESTADO_SHEET  = "ESTADO"
+ESTADO_COLS   = ["item", "status", "quando_iso"]
 
 
 # ========== THEME / CSS ==========
@@ -47,14 +43,14 @@ st.markdown("""
  h1, h2, h3, .stTabs [data-baseweb="tab"] p, .stTextInput label { color:#ffa41b !important; }
  .stTabs [data-baseweb="tab-list"]{ border-bottom:1px solid rgba(255,255,255,.08); }
 
- /* esconder qualquer “Pressione Enter…” */
+ /* esconder qualquer “Pressione Enter…” / instrução automatica */
  [data-testid="stInputInstructions"],
  .stTextInput small,
  .stForm [data-testid="stInputInstructions"],
  .stForm small,
  .stTextInput div[aria-live="polite"] { display:none !important; }
 
- /* caixas: fundo/borda, altura e foco */
+ /* caixas padrão: fundo/borda, altura e foco */
  .stTextInput>div>div{
    background:#1e293b !important; border:1px solid rgba(255,255,255,.18);
    border-radius:10px; height:40px; display:flex; align-items:center;
@@ -62,18 +58,17 @@ st.markdown("""
  .stTextInput>div>div:focus-within{ outline:1px solid #334155 !important; }
  .stTextInput input{ width:100% !important; color:#fff !important; padding:8px 12px; }
 
- /* LARGURA FIXA REAL para os inputs do formulário de e-mail (250px) */
- form[data-testid="stForm"] .stTextInput>div>div{ width:250px !important; max-width:250px !important; }
+ /* ESCOPO DO PAINEL DE E-MAIL — garante 250px reais e gap menor */
+ #email-row .stColumns{ gap:12px !important; }
+ #email-row .stTextInput>div>div{ width:250px !important; max-width:250px !important; }
+ #email-row .stTextInput [data-baseweb="input"]{ width:250px !important; max-width:250px !important; }
 
- /* diminuir o gap entre as colunas do formulário */
- .stForm .stColumns{ gap:10px !important; }
-
- /* botão laranja com mesma altura das caixas */
- .stButton>button, .stForm button{
+ /* botão laranja com mesma altura */
+ .stButton>button{
    background:#ffa41b !important; color:#0f172a !important; border:0 !important;
    border-radius:14px; font-weight:700; height:40px;
  }
- .stButton>button:hover, .stForm button:hover{ filter:brightness(1.05); }
+ .stButton>button:hover{ filter:brightness(1.05); }
 
  /* faixa de sucesso compacta */
  .stAlert{ padding:10px 14px !important; border-radius:10px !important; }
@@ -84,7 +79,6 @@ st.markdown("""
 # ========== UTILS ==========
 def _now_local() -> datetime:
     return datetime.now(ZoneInfo(APP_TZ))
-
 
 def _now_iso() -> str:
     return _now_local().isoformat()
@@ -98,12 +92,9 @@ def _gs_client():
       - GCP_CREDENTIALS_PATH  (nome do arquivo secreto no Render, ex.: noted-....json)
     """
     creds_json = (os.getenv("GCP_CREDENTIALS_JSON") or "").strip()
-
-    # Se não veio JSON por variável, tenta arquivo secreto
     if not creds_json:
         path = (os.getenv("GCP_CREDENTIALS_PATH") or "").strip()
         if path:
-            # Se veio só o nome do arquivo, use a pasta padrão de secrets do Render
             full = path if path.startswith("/") else f"/etc/secrets/{path}"
             try:
                 with open(full, "r", encoding="utf-8") as f:
@@ -114,7 +105,6 @@ def _gs_client():
     if not creds_json:
         raise RuntimeError("Credencial do Google ausente. Configure GCP_CREDENTIALS_JSON ou GCP_CREDENTIALS_PATH.")
 
-    # Parse robusto do JSON (aceita escapes)
     try:
         data = json.loads(creds_json)
     except Exception:
@@ -127,13 +117,11 @@ def _gs_client():
     creds = Credentials.from_service_account_info(data, scopes=scopes)
     return gspread.Client(auth=creds)
 
-
 def _open_sheet(sheet_id: str):
     if not sheet_id:
         raise RuntimeError("SHEET_ID não configurado.")
     gc = _gs_client()
     return gc.open_by_key(sheet_id)
-
 
 def _get_ws(sh, title: str, header: List[str]):
     try:
@@ -141,26 +129,22 @@ def _get_ws(sh, title: str, header: List[str]):
     except gspread.WorksheetNotFound:
         ws = sh.add_worksheet(title=title, rows="1000", cols=str(max(6, len(header))))
         ws.update([header])
-    # garante cabeçalho exclusivo
     head = ws.row_values(1)
     if head != header:
         ws.resize(rows=1)
         ws.update([header])
     return ws
 
-
 def _read_ws_df(title: str, header: List[str]) -> pd.DataFrame:
     sh = _open_sheet(SHEET_ID)
     ws = _get_ws(sh, title, header)
-    records = ws.get_all_records()  # usa cabeçalho da linha 1
+    records = ws.get_all_records()
     df = pd.DataFrame(records)
     if df.empty:
         df = pd.DataFrame(columns=header)
     else:
-        # garante colunas na ordem
         df = df.reindex(columns=header)
     return df
-
 
 def _write_ws_df(title: str, header: List[str], df: pd.DataFrame):
     sh = _open_sheet(SHEET_ID)
@@ -184,11 +168,9 @@ def load_email_cfg() -> Dict[str, str]:
     except Exception:
         return {"principal": "", "app_password": "", "envio": "", "ultimo_teste_iso": ""}
 
-
 def save_email_cfg(cfg: Dict[str, str]) -> None:
     df = pd.DataFrame([cfg], columns=EMAIL_COLS)
     _write_ws_df(EMAIL_SHEET, EMAIL_COLS, df)
-
 
 def send_test_email(cfg: dict) -> Tuple[bool, str]:
     try:
@@ -223,23 +205,31 @@ st.caption(f"versão do app: {APP_VERSION or 'local'}")
 def secao_email():
     st.subheader("Configurações de e-mail")
 
-    # Usa form para um único envio; botão na mesma linha dos campos
-    with st.form("email_form"):
-        c1, c2, c3, c4 = st.columns([1, 1, 1, 0.6])  # 3 campos + coluna do botão
+    # carrega cfg da planilha uma única vez por sessão
+    if "email_principal" not in st.session_state:
+        cfg = load_email_cfg()
+        st.session_state["email_principal"] = cfg.get("principal","")
+        st.session_state["email_pass"]     = cfg.get("app_password","")
+        st.session_state["email_envio"]    = cfg.get("envio","")
 
-        with c1:
-            principal = st.text_input("principal", value=(st.session_state.get("email_principal") or ""))
+    # container identificado para CSS escopado (#email-row)
+    st.markdown('<div id="email-row">', unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 0.7])
 
-        with c2:
-            senha = st.text_input("senha", value=(st.session_state.get("email_pass") or ""), type="password")
+    with c1:
+        principal = st.text_input("principal", value=st.session_state.get("email_principal",""))
 
-        with c3:
-            envio = st.text_input("envio", value=(st.session_state.get("email_envio") or ""))
+    with c2:
+        senha = st.text_input("senha", value=st.session_state.get("email_pass",""), type="password")
 
-        enviar = st.form_submit_button(
-            "TESTAR/SALVAR",
-            disabled=not ((principal or "").strip() and (senha or "").strip())
-        )
+    with c3:
+        envio = st.text_input("envio", value=st.session_state.get("email_envio",""))
+
+    with c4:
+        ready = bool((principal or "").strip() and (senha or "").strip())
+        enviar = st.button("TESTAR/SALVAR", disabled=not ready)
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if enviar:
         cfg = {
@@ -256,13 +246,15 @@ def secao_email():
             st.session_state["email_principal"] = cfg["principal"]
             st.session_state["email_pass"] = cfg["app_password"]
             st.session_state["email_envio"] = cfg["envio"]
-            st.success(f"E-mail enviado e dados salvos. {agora.strftime('%H:%M')}", icon="✅")
+            col_ok, _ = st.columns([1,3])   # mensagem mais curta (não ocupa toda a largura)
+            with col_ok:
+                st.success(f"E-mail enviado e dados salvos. {agora.strftime('%H:%M')}", icon="✅")
         else:
             st.error("Não foi possível enviar. Confira os dados e tente novamente.")
             st.caption(msg)
 
 
-# ========== PAINEL: Moedas (estrutura básica ligada ao Sheets) ==========
+# ========== PAINEL: Moedas ==========
 def _lista_moedas_padrao() -> List[str]:
     return [
         "AAVE","ADA","APT","ARB","ATOM","AVAX","AXS","BCH","BNB","BTC","DOGE","DOT","ETH","FET","FIL","FLUX",
@@ -270,19 +262,15 @@ def _lista_moedas_padrao() -> List[str]:
         "SUI","TIA","TNSR","TON","TRX","UNI","WIF","XRP"
     ]
 
-
 def secao_moedas():
     st.subheader("PAINEL DE MOEDAS")
-
-    # lê planilha
     df = _read_ws_df(MOEDA_SHEET, MOEDA_COLS)
 
     c1, c2 = st.columns([1, 1])
     with c1:
         st.caption("Nova moeda (lista padrão em ordem alfabética)")
-        nova = st.selectbox(
-            "nova", _lista_moedas_padrao(), index=_lista_moedas_padrao().index("BTC"), label_visibility="collapsed"
-        )
+        lista = _lista_moedas_padrao()
+        nova = st.selectbox("nova", lista, index=lista.index("BTC"), label_visibility="collapsed")
     with c2:
         st.write("")
         st.write("")
@@ -303,7 +291,7 @@ def secao_moedas():
         st.dataframe(df, use_container_width=True, hide_index=True)
 
 
-# ========== PAINEL: Entrada (placeholder conectado ao Sheets) ==========
+# ========== PAINEL: Entrada ==========
 def secao_entrada():
     st.subheader("Entradas")
     df = _read_ws_df(ENTRADA_SHEET, ENTRADA_COLS)
@@ -326,7 +314,7 @@ def secao_entrada():
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 
-# ========== PAINEL: Saída (placeholder conectado ao Sheets) ==========
+# ========== PAINEL: Saída ==========
 def secao_saida():
     st.subheader("Saídas")
     df = _read_ws_df(SAIDA_SHEET, SAIDA_COLS)
@@ -358,14 +346,12 @@ def _status_google_sheets() -> Tuple[str, str]:
     except Exception as e:
         return (f"ERRO: {e}", _now_iso())
 
-
 def _status_ccxt() -> Tuple[str, str]:
     try:
         import ccxt  # noqa: F401
         return ("OK", _now_iso())
     except Exception:
         return ("NÃO INSTALADO", _now_iso())
-
 
 def secao_estado():
     st.subheader("Estado do sistema")
@@ -384,14 +370,10 @@ def secao_estado():
     col3, col4 = st.columns([1,1])
     with col3:
         if st.button("Forçar atualização (limpar cache)"):
-            try:
-                st.cache_data.clear()
-            except:
-                pass
-            try:
-                st.cache_resource.clear()
-            except:
-                pass
+            try: st.cache_data.clear()
+            except: pass
+            try: st.cache_resource.clear()
+            except: pass
             st.success("Cache limpo. Recarregando…")
             st.experimental_rerun()
     with col4:
