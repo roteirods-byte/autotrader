@@ -1,16 +1,45 @@
-# ==========================
-# aplicativo.py — versão estável (painéis funcionais)
-# ==========================
-# Requisitos mínimos: streamlit, pandas, gspread, google-auth
-# (se não tiver ccxt, os botões de preço/sinais ficam desativados)
-import os, json, ssl, smtplib
-from email.message import EmailMessage
-from typing import List, Tuple
-from datetime import datetime, timezone
-import pandas as pd
+# aplicativo.py — versão completa (cole tudo)
+
+import os
+import json
+from datetime import datetime
+from typing import Tuple, List, Dict
+
 import streamlit as st
+import pandas as pd
+
+# ====== Fuso / versão do app ======
 from zoneinfo import ZoneInfo
-# ---------- TEMA ----------
+APP_TZ = "America/Sao_Paulo"
+APP_VERSION = (os.getenv("RENDER_GIT_COMMIT") or os.getenv("COMMIT_HASH", "") or "")[:7]
+
+# ====== E-mail (teste) ======
+import smtplib, ssl
+from email.message import EmailMessage
+
+# ====== Google Sheets ======
+import gspread
+from google.oauth2.service_account import Credentials
+
+SHEET_ID = os.getenv("SHEET_ID", "").strip()
+
+EMAIL_SHEET = "EMAIL"
+EMAIL_COLS = ["principal", "app_password", "envio", "ultimo_teste_iso"]
+
+MOEDA_SHEET = "MOEDA"
+MOEDA_COLS = ["moeda", "ativo", "criado_em_iso"]
+
+ENTRADA_SHEET = "ENTRADA"
+ENTRADA_COLS = ["moeda", "preco", "quantidade", "quando_iso"]
+
+SAIDA_SHEET = "SAIDA"
+SAIDA_COLS = ["moeda", "preco", "quantidade", "quando_iso"]
+
+ESTADO_SHEET = "ESTADO"
+ESTADO_COLS = ["item", "status", "quando_iso"]
+
+
+# ========== THEME / CSS ==========
 st.set_page_config(page_title="Interface do projeto", layout="wide")
 st.markdown("""
 <style>
@@ -18,9 +47,12 @@ st.markdown("""
  h1, h2, h3, .stTabs [data-baseweb="tab"] p, .stTextInput label { color:#ffa41b !important; }
  .stTabs [data-baseweb="tab-list"]{ border-bottom:1px solid rgba(255,255,255,.08); }
 
- /* remover “Pressione Enter …” */
- [data-testid="stInputInstructions"], .stTextInput small, .stForm [data-testid="stInputInstructions"],
- .stForm small, .stTextInput div[aria-live="polite"] { display:none !important; }
+ /* esconder qualquer “Pressione Enter…” */
+ [data-testid="stInputInstructions"],
+ .stTextInput small,
+ .stForm [data-testid="stInputInstructions"],
+ .stForm small,
+ .stTextInput div[aria-live="polite"] { display:none !important; }
 
  /* caixas: fundo/borda, altura e foco */
  .stTextInput>div>div{
@@ -30,18 +62,13 @@ st.markdown("""
  .stTextInput>div>div:focus-within{ outline:1px solid #334155 !important; }
  .stTextInput input{ width:100% !important; color:#fff !important; padding:8px 12px; }
 
- /* 3 caixas = 250px reais (container + input) */
- .stTextInput:has(input[aria-label="principal"]) > div > div,
- .stTextInput:has(input[aria-label="senha"])     > div > div,
- .stTextInput:has(input[aria-label="envio"])     > div > div { width:250px !important; max-width:250px !important; }
- .stTextInput:has(input[aria-label="principal"]) [data-baseweb="input"],
- .stTextInput:has(input[aria-label="senha"])     [data-baseweb="input"],
- .stTextInput:has(input[aria-label="envio"])     [data-baseweb="input"] { width:250px !important; max-width:250px !important; }
+ /* LARGURA FIXA REAL para os inputs do formulário de e-mail (250px) */
+ form[data-testid="stForm"] .stTextInput>div>div{ width:250px !important; max-width:250px !important; }
 
- /* diminuir gap entre colunas do formulário */
+ /* diminuir o gap entre as colunas do formulário */
  .stForm .stColumns{ gap:10px !important; }
 
- /* botão laranja + mesma altura das caixas */
+ /* botão laranja com mesma altura das caixas */
  .stButton>button, .stForm button{
    background:#ffa41b !important; color:#0f172a !important; border:0 !important;
    border-radius:14px; font-weight:700; height:40px;
@@ -54,132 +81,95 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+# ========== UTILS ==========
+def _now_local() -> datetime:
+    return datetime.now(ZoneInfo(APP_TZ))
 
 
+def _now_iso() -> str:
+    return _now_local().isoformat()
 
-# ---------- PARÂMETROS ----------
-TIMEFRAME_SWING = "4H"
-TIMEFRAME_POSICIONAL = "1D"
-FREQUENCIA_MIN = 10
-APP_TZ = "America/Sao_Paulo"
 
-SHEET_EMAIL    = "EMAIL"
-SHEET_MOEDA    = "MOEDA"
-SHEET_ENTRADA  = "ENTRADA"
-SHEET_SAIDA    = "SAIDA"
-SHEET_ESTADO   = "ESTADO"
-SHEET_CONFIG   = "CONFIG"
-
-EMAIL_COLS   = ["principal","app_password","envio","ultimo_teste_iso"]
-MOEDA_COLS   = ["moeda"]
-ENTRADA_COLS = ["par","side","modo","entrada","alvo","preco_atual","pnl_pct","situacao","data","hora"]
-SAIDA_COLS   = ["par","side","modo","entrada","alvo","preco_atual","pnl_pct","situacao","data","hora"]
-ESTADO_COLS  = ["kpi","valor","ts_iso"]
-CONFIG_COLS  = ["risco_pct","alavancagem","spread_max","slippage_max","pl_alvo_pct","funding_filtro","fuso","auto_engine","ultima_atualizacao_iso"]
-
-COINS_PROJETO: List[str] = [
-    "AAVE","ADA","APT","ARB","ATOM","AVAX","AXS","BCH","BNB","BTC",
-    "DOGE","DOT","ETH","FET","FIL","FLUX","ICP","INJ","LDO","LINK",
-    "LTC","NEAR","OP","PEPE","POL","RATS","RENDER","RUNE","SEI","SHIB",
-    "SOL","SUI","TIA","TNSR","TON","TRX","UNI","WIF","XRP"
-]
-
-def _now_iso(): return datetime.now(timezone.utc).astimezone().isoformat()
-
-# ---------- GOOGLE SHEETS (robusto) ----------
-@st.cache_resource(show_spinner=False)
-def _get_gspread():
+@st.cache_resource
+def _gs_client():
+    """Autentica no Google Sheets via JSON no env GCP_CREDENTIALS_JSON."""
+    creds_json = os.getenv("GCP_CREDENTIALS_JSON", "")
+    if not creds_json:
+        raise RuntimeError("GCP_CREDENTIALS_JSON não configurado.")
     try:
-        import gspread
-        from google.oauth2.service_account import Credentials
-        scopes = ["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive"]
-        cj = os.getenv("GCP_CREDENTIALS_JSON")
-        cp = os.getenv("GCP_CREDENTIALS_PATH")
-        if cj:
-            creds = Credentials.from_service_account_info(json.loads(cj), scopes=scopes)
-        elif cp and os.path.exists(cp):
-            creds = Credentials.from_service_account_file(cp, scopes=scopes)
-        else:
-            st.warning("Credenciais GCP não configuradas. (Sem salvar no Sheets)")
-            return None, None
-        cli = gspread.authorize(creds)
-        sid = os.getenv("SHEET_ID")
-        if not sid:
-            st.warning("SHEET_ID não definido. (Sem salvar no Sheets)")
-            return None, None
-        sh = cli.open_by_key(sid)
-        return cli, sh
-    except Exception as e:
-        st.error(f"Falha no Google Sheets: {e}")
-        return None, None
+        data = json.loads(creds_json)
+    except Exception:
+        # se veio com quebras/escapes, tenta normalizar
+        data = json.loads(creds_json.encode("utf-8").decode("unicode_escape"))
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    creds = Credentials.from_service_account_info(data, scopes=scopes)
+    return gspread.Client(auth=creds)
 
-def _get_ws(title: str, header: List[str]):
-    client, sh = _get_gspread()
-    if not sh: return None
+
+def _open_sheet(sheet_id: str):
+    if not sheet_id:
+        raise RuntimeError("SHEET_ID não configurado.")
+    gc = _gs_client()
+    return gc.open_by_key(sheet_id)
+
+
+def _get_ws(sh, title: str, header: List[str]):
     try:
         ws = sh.worksheet(title)
-        return ws
-    except Exception as e:
-        # se NÃO for "aba não encontrada", não tenta criar
-        try:
-            import gspread
-            if not isinstance(e, gspread.exceptions.WorksheetNotFound):
-                return None
-        except Exception:
-            return None
-        # cria a aba com cabeçalho
-        ws = sh.add_worksheet(title=title, rows="2", cols=str(max(6, len(header))))
-        ws.update("A1", [header])
-        return ws
+    except gspread.WorksheetNotFound:
+        ws = sh.add_worksheet(title=title, rows="1000", cols=str(max(6, len(header))))
+        ws.update([header])
+    # garante cabeçalho exclusivo
+    head = ws.row_values(1)
+    if head != header:
+        ws.resize(rows=1)
+        ws.update([header])
+    return ws
 
-def _ensure_header(ws, header: List[str]):
-    try:
-        vals = ws.get_values("1:1") or [[]]
-        cur = [c.strip().lower() for c in (vals[0] if vals else [])]
-        need = (len(cur) < len(header)) or any((cur[i] if i < len(cur) else "") != header[i] for i in range(len(header)))
-        if need: ws.update("A1", [header])
-    except Exception:
-        try: ws.update("A1", [header])
-        except Exception: pass
 
 def _read_ws_df(title: str, header: List[str]) -> pd.DataFrame:
-    ws = _get_ws(title, header)
-    if ws is None: return pd.DataFrame(columns=header)
-    try:
-        _ensure_header(ws, header)
-        values = ws.get_all_values()
-    except Exception:
-        return pd.DataFrame(columns=header)
-    if not values: return pd.DataFrame(columns=header)
-    rows = values[1:] if len(values) > 1 else []
-    if not rows: return pd.DataFrame(columns=header)
-    df = pd.DataFrame(rows)
-    # ajusta colunas
-    if df.shape[1] >= len(header): df = df.iloc[:, :len(header)]
+    sh = _open_sheet(SHEET_ID)
+    ws = _get_ws(sh, title, header)
+    records = ws.get_all_records()  # usa cabeçalho da linha 1
+    df = pd.DataFrame(records)
+    if df.empty:
+        df = pd.DataFrame(columns=header)
     else:
-        for _ in range(len(header)-df.shape[1]): df[df.shape[1]] = ""
-    df.columns = header
-    df = df[~(df.replace("", pd.NA).isna().all(axis=1))].reset_index(drop=True)
+        # garante colunas na ordem
+        df = df.reindex(columns=header)
     return df
 
-def _write_ws_df(title: str, df: pd.DataFrame, header: List[str]):
-    ws = _get_ws(title, header)
-    if ws is None: return
-    _ensure_header(ws, header)
-    for c in header:
-        if c not in df.columns: df[c] = ""
-    df = df[header]
-    payload = [header] + df.astype(str).values.tolist()
-    ws.clear(); ws.update("A1", payload)
 
-# ---------- EMAIL ----------
-def load_email_cfg() -> dict:
-    df = _read_ws_df(SHEET_EMAIL, EMAIL_COLS)
-    if df.empty: return {"principal":"","app_password":"","envio":"","ultimo_teste_iso":""}
-    return df.iloc[0].to_dict()
+def _write_ws_df(title: str, header: List[str], df: pd.DataFrame):
+    sh = _open_sheet(SHEET_ID)
+    ws = _get_ws(sh, title, header)
+    if df.empty:
+        ws.resize(rows=1)
+        ws.update([header])
+        return
+    ws.resize(rows=len(df) + 1)
+    ws.update([header] + df.astype(str).values.tolist())
 
-def save_email_cfg(cfg: dict):
-    _write_ws_df(SHEET_EMAIL, pd.DataFrame([cfg], columns=EMAIL_COLS), EMAIL_COLS)
+
+# ========== EMAIL: carregar/salvar + enviar teste ==========
+def load_email_cfg() -> Dict[str, str]:
+    try:
+        df = _read_ws_df(EMAIL_SHEET, EMAIL_COLS)
+        if df.empty:
+            return {"principal": "", "app_password": "", "envio": "", "ultimo_teste_iso": ""}
+        row = df.iloc[0].to_dict()
+        return {k: (row.get(k) or "") for k in EMAIL_COLS}
+    except Exception:
+        return {"principal": "", "app_password": "", "envio": "", "ultimo_teste_iso": ""}
+
+
+def save_email_cfg(cfg: Dict[str, str]) -> None:
+    df = pd.DataFrame([cfg], columns=EMAIL_COLS)
+    _write_ws_df(EMAIL_SHEET, EMAIL_COLS, df)
+
 
 def send_test_email(cfg: dict) -> Tuple[bool, str]:
     try:
@@ -188,14 +178,15 @@ def send_test_email(cfg: dict) -> Tuple[bool, str]:
         to   = (cfg.get("envio") or user).strip()
         if not (user and pwd and to):
             return False, "Preencha principal, senha e envio."
-        # data/hora local (America/Sao_Paulo) e só HH:MM
-        agora = datetime.now(ZoneInfo(APP_TZ))
-        corpo = f"teste ok - {agora.strftime('%d/%m/%Y')} - {agora.strftime('%H:%M')}"
+
+        agora = _now_local()
+        body  = f"teste ok - {agora.strftime('%d/%m/%Y')} - {agora.strftime('%H:%M')}"
         msg = EmailMessage()
         msg["Subject"] = "Teste — Autotrader"
         msg["From"] = user
         msg["To"] = to
-        msg.set_content(corpo)
+        msg.set_content(body)
+
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ssl.create_default_context()) as s:
             s.login(user, pwd)
             s.send_message(msg)
@@ -204,35 +195,18 @@ def send_test_email(cfg: dict) -> Tuple[bool, str]:
         return False, f"Erro no envio: {e}"
 
 
-# ---------- MOEDAS ----------
-def load_coins() -> List[str]:
-    df = _read_ws_df(SHEET_MOEDA, MOEDA_COLS)
-    if df.empty: return COINS_PROJETO.copy()
-    coins = [str(x).strip().upper() for x in df["moeda"] if str(x).strip()]
-    return sorted(set(coins))
+# ========== UI: Título ==========
+st.title("Interface do projeto")
+st.caption(f"versão do app: {APP_VERSION or 'local'}")
 
-def save_coins(coins: List[str]):
-    _write_ws_df(SHEET_MOEDA, pd.DataFrame({"moeda": sorted(set(coins))}), MOEDA_COLS)
 
-# ---------- CONFIG ----------
-def load_config() -> dict:
-    df = _read_ws_df(SHEET_CONFIG, CONFIG_COLS)
-    if df.empty:
-        return {"risco_pct":"1.0","alavancagem":"5","spread_max":"0.05","slippage_max":"0.05",
-                "pl_alvo_pct":"6.00","funding_filtro":"OFF","fuso":APP_TZ,"auto_engine":"OFF",
-                "ultima_atualizacao_iso":""}
-    return df.iloc[0].to_dict()
-
-def save_config(cfg: dict):
-    _write_ws_df(SHEET_CONFIG, pd.DataFrame([cfg], columns=CONFIG_COLS), CONFIG_COLS)
-
-# ---------- SEÇÕES ----------
+# ========== PAINEL: E-mail ==========
 def secao_email():
     st.subheader("Configurações de e-mail")
 
-    # 3 colunas iguais (espaçamento simétrico) + 4ª p/ botão
+    # Usa form para um único envio; botão na mesma linha dos campos
     with st.form("email_form"):
-        c1, c2, c3, c4 = st.columns([1, 1, 1, 0.6])
+        c1, c2, c3, c4 = st.columns([1, 1, 1, 0.6])  # 3 campos + coluna do botão
 
         with c1:
             principal = st.text_input("principal", value=(st.session_state.get("email_principal") or ""))
@@ -243,139 +217,177 @@ def secao_email():
         with c3:
             envio = st.text_input("envio", value=(st.session_state.get("email_envio") or ""))
 
-        enviar = st.form_submit_button("TESTAR/SALVAR",
-                                       disabled=not ((principal or "").strip() and (senha or "").strip()))
+        enviar = st.form_submit_button(
+            "TESTAR/SALVAR",
+            disabled=not ((principal or "").strip() and (senha or "").strip())
+        )
 
     if enviar:
-        novo = {
+        cfg = {
             "principal": (principal or "").strip(),
             "app_password": (senha or "").strip(),
             "envio": ((envio or principal) or "").strip(),
             "ultimo_teste_iso": ""
         }
-        ok, msg = send_test_email(novo)
+        ok, msg = send_test_email(cfg)
         if ok:
-            agora = datetime.now(ZoneInfo(APP_TZ))
-            novo["ultimo_teste_iso"] = agora.isoformat()
-            save_email_cfg(novo)
-            st.session_state["email_principal"] = novo["principal"]
-            st.session_state["email_pass"] = novo["app_password"]
-            st.session_state["email_envio"] = novo["envio"]
+            agora = _now_local()
+            cfg["ultimo_teste_iso"] = agora.isoformat()
+            save_email_cfg(cfg)
+            st.session_state["email_principal"] = cfg["principal"]
+            st.session_state["email_pass"] = cfg["app_password"]
+            st.session_state["email_envio"] = cfg["envio"]
             st.success(f"E-mail enviado e dados salvos. {agora.strftime('%H:%M')}", icon="✅")
         else:
             st.error("Não foi possível enviar. Confira os dados e tente novamente.")
             st.caption(msg)
 
 
-
-
+# ========== PAINEL: Moedas (estrutura básica ligada ao Sheets) ==========
+def _lista_moedas_padrao() -> List[str]:
+    return [
+        "AAVE","ADA","APT","ARB","ATOM","AVAX","AXS","BCH","BNB","BTC","DOGE","DOT","ETH","FET","FIL","FLUX",
+        "ICP","INJ","LDO","LINK","LTC","NEAR","OP","PEPE","POL","RATS","RENDER","RUNE","SEI","SHIB","SOL",
+        "SUI","TIA","TNSR","TON","TRX","UNI","WIF","XRP"
+    ]
 
 
 def secao_moedas():
     st.subheader("PAINEL DE MOEDAS")
-    if "moedas" not in st.session_state: st.session_state["moedas"] = load_coins()
-    st.session_state.setdefault("nova_moeda",""); st.session_state.setdefault("remover_moedas",[])
-    c1,c2 = st.columns([6,1])
-    with c1: st.text_input("Nova:", key="nova_moeda", placeholder="BTC, ETH, ...")
-    def _on_add():
-        val = (st.session_state.get("nova_moeda") or "").strip().upper()
-        if val and val not in st.session_state["moedas"]:
-            st.session_state["moedas"].append(val)
-            st.session_state["moedas"] = sorted(set(st.session_state["moedas"]))
-            try: save_coins(st.session_state["moedas"]); st.success(f"{val} adicionada.", icon="✅")
-            except Exception as e: st.error(f"Erro ao salvar: {e}")
-        st.session_state.pop("nova_moeda", None); st.rerun()
-    with c2: st.button("Adicionar", type="primary", on_click=_on_add)
 
-    st.caption("Lista atual (ordem alfabética):")
-    st.dataframe(pd.DataFrame({"Moeda": st.session_state["moedas"]}), use_container_width=True, hide_index=True)
+    # lê planilha
+    df = _read_ws_df(MOEDA_SHEET, MOEDA_COLS)
 
-    sel = st.multiselect("Remover", options=st.session_state["moedas"], key="remover_moedas")
-    def _on_del():
-        if st.session_state["remover_moedas"]:
-            st.session_state["moedas"] = [m for m in st.session_state["moedas"] if m not in st.session_state["remover_moedas"]]
-            st.session_state["moedas"].sort()
-            try: save_coins(st.session_state["moedas"]); st.success("Remoção salva.", icon="✅")
-            except Exception as e: st.error(f"Erro ao salvar: {e}")
-        st.session_state["remover_moedas"] = []; st.rerun()
-    st.button("Excluir selecionadas", disabled=not sel, on_click=_on_del)
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        st.caption("Nova moeda (lista padrão em ordem alfabética)")
+        nova = st.selectbox(
+            "nova", _lista_moedas_padrao(), index=_lista_moedas_padrao().index("BTC"), label_visibility="collapsed"
+        )
+    with c2:
+        st.write("")
+        st.write("")
+        if st.button("Adicionar"):
+            if (df["moeda"] == nova).any():
+                st.info("Moeda já cadastrada.")
+            else:
+                add = pd.DataFrame([{"moeda": nova, "ativo": "sim", "criado_em_iso": _now_iso()}])
+                df = pd.concat([df, add], ignore_index=True)
+                _write_ws_df(MOEDA_SHEET, MOEDA_COLS, df)
+                st.success(f"{nova} adicionada.", icon="✅")
 
+    st.divider()
+    st.caption("Atuais:")
+    if df.empty:
+        st.write("Nenhuma moeda cadastrada.")
+    else:
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+# ========== PAINEL: Entrada (placeholder conectado ao Sheets) ==========
 def secao_entrada():
-    st.subheader("Monitoramento de ENTRADA")
-    st.caption(f"Swing = {TIMEFRAME_SWING} · Posicional = {TIMEFRAME_POSICIONAL} · Atualização alvo = {FREQUENCIA_MIN} min")
-    df = _read_ws_df(SHEET_ENTRADA, ENTRADA_COLS)
-    if not df.empty:
-        for c in ["entrada","alvo","preco_atual"]:
-            if c in df.columns:
-                def _fmt(x):
-                    try: return f"{float(x):.3f}"
-                    except: return str(x)
-                df[c] = df[c].apply(_fmt)
-        if "pnl_pct" in df.columns:
-            def _pct(x):
-                try: return f"{float(x):.2f}%"
-                except: return str(x)
-            df["pnl_pct"] = df["pnl_pct"].apply(_pct)
+    st.subheader("Entradas")
+    df = _read_ws_df(ENTRADA_SHEET, ENTRADA_COLS)
+    with st.expander("Nova entrada"):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            m = st.text_input("moeda")
+        with c2:
+            p = st.number_input("preço", min_value=0.0, step=0.01, format="%.2f")
+        with c3:
+            q = st.number_input("quantidade", min_value=0.0, step=0.0001, format="%.4f")
+        if st.button("Salvar entrada"):
+            if m:
+                add = pd.DataFrame([{"moeda": m.upper(), "preco": p, "quantidade": q, "quando_iso": _now_iso()}])
+                df = pd.concat([df, add], ignore_index=True)
+                _write_ws_df(ENTRADA_SHEET, ENTRADA_COLS, df)
+                st.success("Entrada salva.", icon="✅")
+            else:
+                st.warning("Informe a moeda.")
     st.dataframe(df, use_container_width=True, hide_index=True)
-    st.caption("Tudo certo: tabela abre sem erro. (Geração de sinais e preços vamos ativar depois.)")
 
+
+# ========== PAINEL: Saída (placeholder conectado ao Sheets) ==========
 def secao_saida():
-    st.subheader("Monitoramento de SAÍDA")
-    df = _read_ws_df(SHEET_SAIDA, SAIDA_COLS)
-    if not df.empty:
-        for c in ["entrada","alvo","preco_atual"]:
-            if c in df.columns:
-                def _fmt(x):
-                    try: return f"{float(x):.3f}"
-                    except: return str(x)
-                df[c] = df[c].apply(_fmt)
-        if "pnl_pct" in df.columns:
-            def _pct(x):
-                try: return f"{float(x):.2f}%"
-                except: return str(x)
-            df["pnl_pct"] = df["pnl_pct"].apply(_pct)
+    st.subheader("Saídas")
+    df = _read_ws_df(SAIDA_SHEET, SAIDA_COLS)
+    with st.expander("Nova saída"):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            m = st.text_input("moeda ")
+        with c2:
+            p = st.number_input("preço ", min_value=0.0, step=0.01, format="%.2f")
+        with c3:
+            q = st.number_input("quantidade ", min_value=0.0, step=0.0001, format="%.4f")
+        if st.button("Salvar saída"):
+            if m:
+                add = pd.DataFrame([{"moeda": m.upper(), "preco": p, "quantidade": q, "quando_iso": _now_iso()}])
+                df = pd.concat([df, add], ignore_index=True)
+                _write_ws_df(SAIDA_SHEET, SAIDA_COLS, df)
+                st.success("Saída salva.", icon="✅")
+            else:
+                st.warning("Informe a moeda.")
     st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+# ========== PAINEL: Estado ==========
+def _status_google_sheets() -> Tuple[str, str]:
+    try:
+        sh = _open_sheet(SHEET_ID)
+        _ = [ws.title for ws in sh.worksheets()]
+        return ("OK", _now_iso())
+    except Exception as e:
+        return (f"ERRO: {e}", _now_iso())
+
+
+def _status_ccxt() -> Tuple[str, str]:
+    try:
+        import ccxt  # noqa: F401
+        return ("OK", _now_iso())
+    except Exception:
+        return ("NÃO INSTALADO", _now_iso())
+
 
 def secao_estado():
-    st.subheader("Estado / KPIs")
-    cfg = st.session_state.get("cfg") or load_config()
-    c1,c2,c3,c4 = st.columns(4)
-    with c1: st.metric("SHEET_ID", "OK" if _get_gspread()[1] else "OFF")
-    with c2: st.metric("E-mail", "OK" if (load_email_cfg().get("principal") and load_email_cfg().get("app_password")) else "OFF")
-    try:
-        import ccxt; ccxt_ok = True
-    except Exception:
-        ccxt_ok = False
-    with c3: st.metric("ccxt (preços/sinais)", "OK" if ccxt_ok else "OFF")
-    with c4: st.metric("Motor automático", cfg.get("auto_engine","OFF"))
-    st.markdown("---")
-    st.subheader("Parâmetros Globais")
-    c1,c2,c3,c4 = st.columns(4)
-    with c1:
-        risco = st.text_input("Risco %", cfg.get("risco_pct","1.0"))
-        spread = st.text_input("Spread máx. %", cfg.get("spread_max","0.05"))
-    with c2:
-        alav = st.text_input("Alavancagem (x)", cfg.get("alavancagem","5"))
-        slip = st.text_input("Slippage máx. %", cfg.get("slippage_max","0.05"))
-    with c3:
-        pl = st.text_input("PL alvo %", cfg.get("pl_alvo_pct","6.00"))
-        funding = st.selectbox("Filtro Funding", ["ON","OFF"], index=0 if cfg.get("funding_filtro","OFF")=="ON" else 1)
-    with c4:
-        fuso = st.text_input("Fuso horário", cfg.get("fuso", APP_TZ))
-        auto = st.selectbox("Motor automático", ["ON","OFF"], index=0 if cfg.get("auto_engine","OFF")=="ON" else 1)
-        st.write("")
-        if st.button("Aplicar/Salvar"):
-            new_cfg = {"risco_pct":risco.strip() or "1.0","alavancagem":alav.strip() or "5",
-                       "spread_max":spread.strip() or "0.05","slippage_max":slip.strip() or "0.05",
-                       "pl_alvo_pct":pl.strip() or "6.00","funding_filtro":funding,
-                       "fuso":fuso.strip() or APP_TZ,"auto_engine":auto,"ultima_atualizacao_iso":_now_iso()}
-            save_config(new_cfg); st.session_state["cfg"]=new_cfg; st.success("Parâmetros salvos.", icon="✅")
+    st.subheader("Estado do sistema")
 
-# ---------- APP ----------
-st.title("Interface do projeto")
+    col1, col2 = st.columns(2)
+    with col1:
+        gs_status, quando = _status_google_sheets()
+        st.write(f"**Google Sheets**: {gs_status}")
+        st.caption(quando)
+    with col2:
+        cx, quando2 = _status_ccxt()
+        st.write(f"**ccxt**: {cx}")
+        st.caption(quando2)
+
+    st.markdown("### Manutenção")
+    col3, col4 = st.columns([1,1])
+    with col3:
+        if st.button("Forçar atualização (limpar cache)"):
+            try:
+                st.cache_data.clear()
+            except:
+                pass
+            try:
+                st.cache_resource.clear()
+            except:
+                pass
+            st.success("Cache limpo. Recarregando…")
+            st.experimental_rerun()
+    with col4:
+        st.info(f"Versão atual: {APP_VERSION or 'local'}")
+
+
+# ========== TABS ==========
 tabs = st.tabs(["E-mail", "Moedas", "Entrada", "Saída", "Estado"])
-with tabs[0]: secao_email()
-with tabs[1]: secao_moedas()
-with tabs[2]: secao_entrada()
-with tabs[3]: secao_saida()
-with tabs[4]: secao_estado()
+with tabs[0]:  # E-mail
+    secao_email()
+with tabs[1]:  # Moedas
+    secao_moedas()
+with tabs[2]:  # Entrada
+    secao_entrada()
+with tabs[3]:  # Saída
+    secao_saida()
+with tabs[4]:  # Estado
+    secao_estado()
