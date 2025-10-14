@@ -11,16 +11,28 @@ import pandas as pd
 import streamlit as st
 
 # ---------- TEMA ----------
-st.set_page_config(page_title="Interface do projeto — layout aprovado", layout="wide")
+st.set_page_config(page_title="Interface do projeto", layout="wide")
 st.markdown("""
 <style>
  .stApp { background:#0f172a; }
  h1, h2, h3, .stTabs [data-baseweb="tab"] p { color:#ffa41b !important; }
  .stTabs [data-baseweb="tab-list"]{ border-bottom:1px solid rgba(255,255,255,.08); }
- .stButton>button{ border-radius:14px; font-weight:600; }
- .muted{ opacity:.8; font-size:.85rem; }
+
+ /* caixas de texto — todas iguais e um pouco mais claras */
+ div[data-baseweb="input"] input, .stTextInput input{
+   background:#1e293b !important; color:#ffffff !important;
+ }
+ .stTextInput>div>div{ border:1px solid rgba(255,255,255,.18); border-radius:10px; }
+
+ /* botão laranja */
+ .stButton>button{
+   background:#ffa41b !important; color:#0f172a !important; border:0 !important;
+   border-radius:14px; font-weight:700;
+ }
+ .stButton>button:hover{ filter:brightness(1.05); }
 </style>
 """, unsafe_allow_html=True)
+
 
 # ---------- PARÂMETROS ----------
 TIMEFRAME_SWING = "4H"
