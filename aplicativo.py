@@ -18,33 +18,41 @@ st.markdown("""
  h1, h2, h3, .stTabs [data-baseweb="tab"] p, .stTextInput label { color:#ffa41b !important; }
  .stTabs [data-baseweb="tab-list"]{ border-bottom:1px solid rgba(255,255,255,.08); }
 
- /* esconder 'Pressione Enter...' em qualquer campo */
- [data-testid="stInputInstructions"], .stTextInput small, .stForm [data-testid="stInputInstructions"], .stForm small,
- .stTextInput div[aria-live="polite"] { display:none !important; }
+ /* remover “Pressione Enter …” */
+ [data-testid="stInputInstructions"], .stTextInput small, .stForm [data-testid="stInputInstructions"],
+ .stForm small, .stTextInput div[aria-live="polite"] { display:none !important; }
 
- /* caixas iguais (fundo/borda) */
- .stTextInput>div>div{ background:#1e293b !important; border:1px solid rgba(255,255,255,.18); border-radius:10px; }
+ /* caixas: fundo/borda, altura e foco */
+ .stTextInput>div>div{
+   background:#1e293b !important; border:1px solid rgba(255,255,255,.18);
+   border-radius:10px; height:40px; display:flex; align-items:center;
+ }
+ .stTextInput>div>div:focus-within{ outline:1px solid #334155 !important; }
+ .stTextInput input{ width:100% !important; color:#fff !important; padding:8px 12px; }
 
- /* 3 caixas com LARGURA FIXA REAL = 250px (container + input) */
+ /* 3 caixas = 250px reais (container + input) */
  .stTextInput:has(input[aria-label="principal"]) > div > div,
  .stTextInput:has(input[aria-label="senha"])     > div > div,
  .stTextInput:has(input[aria-label="envio"])     > div > div { width:250px !important; max-width:250px !important; }
  .stTextInput:has(input[aria-label="principal"]) [data-baseweb="input"],
  .stTextInput:has(input[aria-label="senha"])     [data-baseweb="input"],
  .stTextInput:has(input[aria-label="envio"])     [data-baseweb="input"] { width:250px !important; max-width:250px !important; }
- .stTextInput input{ width:100% !important; color:#fff !important; }
 
- /* espaçamento SIMÉTRICO e curto entre as três colunas do formulário */
- .stForm .stColumns{ gap:14px !important; }
+ /* diminuir gap entre colunas do formulário */
+ .stForm .stColumns{ gap:10px !important; }
 
- /* botão laranja */
+ /* botão laranja + mesma altura das caixas */
  .stButton>button, .stForm button{
    background:#ffa41b !important; color:#0f172a !important; border:0 !important;
-   border-radius:14px; font-weight:700;
+   border-radius:14px; font-weight:700; height:40px;
  }
  .stButton>button:hover, .stForm button:hover{ filter:brightness(1.05); }
+
+ /* faixa de sucesso compacta */
+ .stAlert{ padding:10px 14px !important; border-radius:10px !important; }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 
@@ -222,9 +230,9 @@ def save_config(cfg: dict):
 def secao_email():
     st.subheader("Configurações de e-mail")
 
-    # 3 colunas iguais → espaçamento simétrico
+    # 3 colunas iguais (espaçamento simétrico) + 4ª p/ botão
     with st.form("email_form"):
-        c1, c2, c3, c4 = st.columns([1, 1, 1, 0.7])
+        c1, c2, c3, c4 = st.columns([1, 1, 1, 0.6])
 
         with c1:
             principal = st.text_input("principal", value=(st.session_state.get("email_principal") or ""))
@@ -235,7 +243,8 @@ def secao_email():
         with c3:
             envio = st.text_input("envio", value=(st.session_state.get("email_envio") or ""))
 
-        enviar = st.form_submit_button("TESTAR/SALVAR")
+        enviar = st.form_submit_button("TESTAR/SALVAR",
+                                       disabled=not ((principal or "").strip() and (senha or "").strip()))
 
     if enviar:
         novo = {
@@ -246,15 +255,17 @@ def secao_email():
         }
         ok, msg = send_test_email(novo)
         if ok:
-            novo["ultimo_teste_iso"] = _now_iso()
+            agora = datetime.now(ZoneInfo(APP_TZ))
+            novo["ultimo_teste_iso"] = agora.isoformat()
             save_email_cfg(novo)
             st.session_state["email_principal"] = novo["principal"]
             st.session_state["email_pass"] = novo["app_password"]
             st.session_state["email_envio"] = novo["envio"]
-            st.success("E-mail enviado e dados salvos.", icon="✅")
+            st.success(f"E-mail enviado e dados salvos. {agora.strftime('%H:%M')}", icon="✅")
         else:
             st.error("Não foi possível enviar. Confira os dados e tente novamente.")
             st.caption(msg)
+
 
 
 
