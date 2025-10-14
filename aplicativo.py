@@ -15,20 +15,24 @@ st.set_page_config(page_title="Interface do projeto", layout="wide")
 st.markdown("""
 <style>
  .stApp { background:#0f172a; }
- /* títulos/rótulos abóbora */
  h1, h2, h3, .stTabs [data-baseweb="tab"] p, .stTextInput label { color:#ffa41b !important; }
  .stTabs [data-baseweb="tab-list"]{ border-bottom:1px solid rgba(255,255,255,.08); }
 
- /* esconder qualquer aviso "Pressione Enter..." */
- [data-testid="stInputInstructions"], .stTextInput small { display:none !important; }
+ /* esconder QUALQUER aviso de "Pressione Enter..." dentro de formulários/inputs */
+ [data-testid="stInputInstructions"],
+ .stTextInput small,
+ .stForm [data-testid="stInputInstructions"],
+ .stForm small { display:none !important; }
 
- /* caixas com fundo igual e borda */
- .stTextInput>div>div{ background:#1e293b !important; border:1px solid rgba(255,255,255,.18); border-radius:10px; }
+ /* caixas iguais (fundo e borda) */
+ .stTextInput>div>div{
+   background:#1e293b !important; border:1px solid rgba(255,255,255,.18); border-radius:10px;
+ }
 
- /* larguras FIXAS por campo (px) */
- .stTextInput>div>div:has(input[aria-label="principal"]) { width:320px !important; max-width:100%; }
- .stTextInput>div>div:has(input[aria-label="senha"])     { width:260px !important; max-width:100%; }
- .stTextInput>div>div:has(input[aria-label="envio"])     { width:320px !important; max-width:100%; }
+ /* LARGURA FIXA = 250px para TODAS as três caixas */
+ .stTextInput>div>div:has(input[aria-label="principal"]),
+ .stTextInput>div>div:has(input[aria-label="senha"]),
+ .stTextInput>div>div:has(input[aria-label="envio"]) { width:250px !important; max-width:100%; }
  .stTextInput>div>div input{ width:100% !important; color:#fff !important; }
 
  /* botão laranja */
@@ -216,15 +220,19 @@ def save_config(cfg: dict):
 def secao_email():
     st.subheader("Configurações de e-mail")
 
-    # formulário compacto
+    # colunas simétricas para manter o MESMO espaço entre as caixas
     with st.form("email_form"):
-        c1, c2, c3, c4 = st.columns([1.0, 1.2, 1.0, 0.7])
+        c1, c2, c3, c4 = st.columns([1, 1, 1, 0.9])  # 3 colunas iguais → espaçamento igual
+
         with c1:
             principal = st.text_input("principal", value=(st.session_state.get("email_principal") or ""))
+
         with c2:
             senha = st.text_input("senha", value=(st.session_state.get("email_pass") or ""), type="password")
+
         with c3:
             envio = st.text_input("envio", value=(st.session_state.get("email_envio") or ""))
+
         enviar = st.form_submit_button("TESTAR/SALVAR")
 
     if enviar:
