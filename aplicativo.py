@@ -18,22 +18,29 @@ st.markdown("""
  h1, h2, h3, .stTabs [data-baseweb="tab"] p, .stTextInput label { color:#ffa41b !important; }
  .stTabs [data-baseweb="tab-list"]{ border-bottom:1px solid rgba(255,255,255,.08); }
 
- /* esconder QUALQUER aviso de "Pressione Enter..." dentro de formulários/inputs */
+ /* remover avisos "Pressione Enter ..." em qualquer input/form */
  [data-testid="stInputInstructions"],
  .stTextInput small,
  .stForm [data-testid="stInputInstructions"],
- .stForm small { display:none !important; }
+ .stForm small,
+ .stTextInput div[aria-live="polite"] { display:none !important; }
 
- /* caixas iguais (fundo e borda) */
+ /* caixas com fundo/borda iguais */
  .stTextInput>div>div{
    background:#1e293b !important; border:1px solid rgba(255,255,255,.18); border-radius:10px;
  }
 
- /* LARGURA FIXA = 250px para TODAS as três caixas */
- .stTextInput>div>div:has(input[aria-label="principal"]),
- .stTextInput>div>div:has(input[aria-label="senha"]),
- .stTextInput>div>div:has(input[aria-label="envio"]) { width:250px !important; max-width:100%; }
- .stTextInput>div>div input{ width:100% !important; color:#fff !important; }
+ /* LARGURA FIXA REAL = 250px (contêiner + input) para TODAS as três caixas */
+ .stTextInput:has(input[aria-label="principal"]) > div > div,
+ .stTextInput:has(input[aria-label="senha"])     > div > div,
+ .stTextInput:has(input[aria-label="envio"])     > div > div { width:250px !important; max-width:250px !important; }
+ .stTextInput:has(input[aria-label="principal"]) [data-baseweb="input"],
+ .stTextInput:has(input[aria-label="senha"])     [data-baseweb="input"],
+ .stTextInput:has(input[aria-label="envio"])     [data-baseweb="input"] { width:250px !important; max-width:250px !important; }
+ .stTextInput input{ width:100% !important; color:#fff !important; }
+
+ /* diminuir e uniformizar o espaçamento entre as três colunas do formulário */
+ .stForm .stColumns{ gap: 14px !important; }
 
  /* botão laranja */
  .stButton>button, .stForm button{
@@ -43,7 +50,6 @@ st.markdown("""
  .stButton>button:hover, .stForm button:hover{ filter:brightness(1.05); }
 </style>
 """, unsafe_allow_html=True)
-
 
 
 
@@ -222,7 +228,7 @@ def secao_email():
 
     # colunas simétricas para manter o MESMO espaço entre as caixas
     with st.form("email_form"):
-        c1, c2, c3, c4 = st.columns([1, 1, 1, 0.9])  # 3 colunas iguais → espaçamento igual
+        c1, c2, c3, c4 = st.columns([1, 1, 1, 0.7])  # 3 colunas iguais → espaçamento igual
 
         with c1:
             principal = st.text_input("principal", value=(st.session_state.get("email_principal") or ""))
