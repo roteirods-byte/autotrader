@@ -15,23 +15,21 @@ st.set_page_config(page_title="Interface do projeto", layout="wide")
 st.markdown("""
 <style>
  .stApp { background:#0f172a; }
- /* títulos e rótulos em abóbora */
+ /* títulos/rótulos abóbora */
  h1, h2, h3, .stTabs [data-baseweb="tab"] p, .stTextInput label { color:#ffa41b !important; }
  .stTabs [data-baseweb="tab-list"]{ border-bottom:1px solid rgba(255,255,255,.08); }
 
- /* esconder o aviso 'Pressione Enter...' */
- [data-testid="stInputInstructions"],
- [data-testid="InputInstructions"],
- .stTextInput small { display:none !important; }
+ /* esconder qualquer aviso "Pressione Enter..." */
+ [data-testid="stInputInstructions"], .stTextInput small { display:none !important; }
 
  /* caixas com fundo igual e borda */
  .stTextInput>div>div{ background:#1e293b !important; border:1px solid rgba(255,255,255,.18); border-radius:10px; }
- .stTextInput input{ color:#ffffff !important; }
 
- /* comprimentos das 3 caixas (~um pouco maior que o texto) */
- input[aria-label="principal"]{ width:28ch !important; }
- input[aria-label="senha (app password)"]{ width:22ch !important; }
- input[aria-label="Envio (opcional)"], input[aria-label="envio"]{ width:28ch !important; }
+ /* larguras FIXAS por campo (px) */
+ .stTextInput>div>div:has(input[aria-label="principal"]) { width:320px !important; max-width:100%; }
+ .stTextInput>div>div:has(input[aria-label="senha"])     { width:260px !important; max-width:100%; }
+ .stTextInput>div>div:has(input[aria-label="envio"])     { width:320px !important; max-width:100%; }
+ .stTextInput>div>div input{ width:100% !important; color:#fff !important; }
 
  /* botão laranja */
  .stButton>button, .stForm button{
@@ -41,6 +39,7 @@ st.markdown("""
  .stButton>button:hover, .stForm button:hover{ filter:brightness(1.05); }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 
@@ -217,33 +216,27 @@ def save_config(cfg: dict):
 def secao_email():
     st.subheader("Configurações de e-mail")
 
-    # FORM remove o aviso "Pressione Enter para aplicar"
+    # formulário compacto
     with st.form("email_form"):
-        # colunas com espaçamento mais curto; senha mais larga
-        c1, c2, c3, c4 = st.columns([1.1, 1.6, 1.1, 0.8])
-
+        c1, c2, c3, c4 = st.columns([1.0, 1.2, 1.0, 0.7])
         with c1:
             principal = st.text_input("principal", value=(st.session_state.get("email_principal") or ""))
         with c2:
-            # senha com largura maior (fica totalmente visível ao revelar)
-            app_password = st.text_input("senha (app password)", value=(st.session_state.get("email_pass") or ""),
-                                         type="password")
+            senha = st.text_input("senha", value=(st.session_state.get("email_pass") or ""), type="password")
         with c3:
-            envio = st.text_input("Envio (opcional)", value=(st.session_state.get("email_envio") or ""))
-
+            envio = st.text_input("envio", value=(st.session_state.get("email_envio") or ""))
         enviar = st.form_submit_button("TESTAR/SALVAR")
 
     if enviar:
         novo = {
             "principal": (principal or "").strip(),
-            "app_password": (app_password or "").strip(),
+            "app_password": (senha or "").strip(),
             "envio": ((envio or principal) or "").strip(),
             "ultimo_teste_iso": ""
         }
         ok, msg = send_test_email(novo)
         if ok:
-            from datetime import datetime, timezone
-            novo["ultimo_teste_iso"] = datetime.now(timezone.utc).astimezone().isoformat()
+            novo["ultimo_teste_iso"] = _now_iso()
             save_email_cfg(novo)
             st.session_state["email_principal"] = novo["principal"]
             st.session_state["email_pass"] = novo["app_password"]
@@ -251,7 +244,7 @@ def secao_email():
             st.success("E-mail enviado e dados salvos.", icon="✅")
         else:
             st.error("Não foi possível enviar. Confira os dados e tente novamente.")
-            st.caption(msg)  # mostra o motivo (ex.: senha de app inválida)
+            st.caption(msg)
 
 
 
