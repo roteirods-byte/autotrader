@@ -200,24 +200,36 @@ def save_config(cfg: dict):
 def secao_email():
     st.subheader("Configurações de e-mail")
     cfg = st.session_state.get("email_cfg") or load_email_cfg()
-    c1,c2,c3,c4 = st.columns([3,2,3,1])
-    with c1: principal = st.text_input("Principal", value=cfg.get("principal",""), key="email_principal")
-    with c2: app_password = st.text_input("Senha (app password)", value=cfg.get("app_password",""), type="password", key="email_pass")
-    with c3: envio = st.text_input("Envio (opcional)", value=cfg.get("envio",""), key="email_envio")
+
+    # caixas menores (principal -60%, senha -30%, envio -60% aprox.)
+    c1, c2, c3, c4 = st.columns([1.2, 1.4, 1.2, 0.9])
+    with c1:
+        principal = st.text_input("principal", value=cfg.get("principal",""), key="email_principal")
+    with c2:
+        app_password = st.text_input("senha (app password)", value=cfg.get("app_password",""), type="password", key="email_pass")
+    with c3:
+        envio = st.text_input("envio", value=cfg.get("envio",""), key="email_envio")
     with c4:
         st.markdown("&nbsp;")
         if st.button("TESTAR/SALVAR"):
-            new_cfg = {"principal": st.session_state.get("email_principal","").strip(),
-                       "app_password": st.session_state.get("email_pass","").strip(),
-                       "envio": st.session_state.get("email_envio","").strip(),
-                       "ultimo_teste_iso": ""}
+            new_cfg = {
+                "principal": st.session_state.get("email_principal","").strip(),
+                "app_password": st.session_state.get("email_pass","").strip(),
+                "envio": st.session_state.get("email_envio","").strip(),
+                "ultimo_teste_iso": ""
+            }
             ok, msg = send_test_email(new_cfg)
             if ok:
-                new_cfg["ultimo_teste_iso"] = _now_iso(); save_email_cfg(new_cfg)
-                st.session_state["email_cfg"] = new_cfg; st.success(msg)
+                new_cfg["ultimo_teste_iso"] = _now_iso()
+                save_email_cfg(new_cfg)
+                st.session_state["email_cfg"] = new_cfg
+                st.success("E-mail enviado e dados salvos.", icon="✅")
             else:
-                st.error(msg)
+                st.error("Não foi possível enviar. Confira os dados e tente novamente.")
+                st.caption(msg)
+
     st.caption(f"Último teste: {(st.session_state.get('email_cfg') or cfg).get('ultimo_teste_iso','—')}")
+
 
 def secao_moedas():
     st.subheader("PAINEL DE MOEDAS")
@@ -320,7 +332,7 @@ def secao_estado():
             save_config(new_cfg); st.session_state["cfg"]=new_cfg; st.success("Parâmetros salvos.", icon="✅")
 
 # ---------- APP ----------
-st.title("Interface do projeto — layout aprovado")
+st.title("Interface do projeto")
 tabs = st.tabs(["E-mail", "Moedas", "Entrada", "Saída", "Estado"])
 with tabs[0]: secao_email()
 with tabs[1]: secao_moedas()
