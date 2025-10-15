@@ -1,39 +1,32 @@
-import time
-import sys
-import traceback
-from apscheduler.schedulers.background import BackgroundScheduler
-from db import create_tables, heartbeat
+# worker.py
+from __future__ import annotations
+import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-def beat():
-    try:
-        heartbeat("worker", "alive")
-        print("beat OK", flush=True)
-    except Exception as e:
-        print("beat ERROR:", e, flush=True)
-        traceback.print_exc(file=sys.stdout)
+from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+from db import get_engine, ensure_tables, upsert_heartbeat
+
+TZ = os.getenv("TZ", "America/Sao_Paulo")
+APP_VERSION = os.getenv("APP_VERSION", "0.1.0")
+
+def job_heartbeat():
+    # No futuro: pipeline de dados → indicadores → sinais → auditoria
+    upsert_heartbeat(get_engine(), APP_VERSION)
+    print(f"[{datetime.now(ZoneInfo(TZ)).isoformat()}] heartbeat OK - {APP_VERSION}")
 
 def main():
+    ensure_tables(get_engine())
+    sched = BlockingScheduler(timezone=ZoneInfo(TZ))
+    # A cada 15 minutos
+    sched.add_job(job_heartbeat, CronTrigger(minute="*/15"))
+    print("Worker iniciado (15 min)...")
     try:
-        create_tables()
-        print("tables OK", flush=True)
-    except Exception as e:
-        print("create_tables ERROR:", e, flush=True)
-        traceback.print_exc(file=sys.stdout)
-
-    sch = BackgroundScheduler(timezone="UTC", daemon=False)
-    sch.add_job(
-        beat,
-        "interval",
-        seconds=60,
-        id="heartbeat",
-        replace_existing=True,
-        max_instances=1,
-        misfire_grace_time=30,
-    )
-    sch.start()
-
-    while True:
-        time.sleep(60)
+        sched.start()
+    except (KeyboardInterrupt, SystemExit):
+        print("Worker finalizado.")
 
 if __name__ == "__main__":
     main()
