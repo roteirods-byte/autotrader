@@ -9,7 +9,6 @@ DEFAULT_SQLITE = "sqlite:///local.db"
 
 def get_engine() -> Engine:
     url = os.getenv("DATABASE_URL", DEFAULT_SQLITE)
-    # Tipos: postgresql+psycopg2://user:pass@host:5432/db
     engine = create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5, future=True)
     return engine
 
