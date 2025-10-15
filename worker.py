@@ -21,8 +21,8 @@ def main():
     ensure_tables(get_engine())
     sched = BlockingScheduler(timezone=ZoneInfo(TZ))
     # A cada 15 minutos
-    sched.add_job(job_heartbeat, CronTrigger(minute="*/15"))
-    print("Worker iniciado (15 min)...")
+    sched.add_job(job_heartbeat, CronTrigger(minute="*/10"))  # antes: */15
+print("Worker iniciado (10 min)...")                      # ajuste do texto
     try:
         sched.start()
     except (KeyboardInterrupt, SystemExit):
