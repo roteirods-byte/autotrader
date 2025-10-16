@@ -72,11 +72,18 @@ tab_email, tab_moedas, tab_entrada, tab_saida = st.tabs(["✉️ EMAIL", "🪙 M
 
 with tab_email:
     st.subheader("EMAIL")
+    view = emails[["data","hora","assunto","mensagem","status"]].fillna("")
     st.dataframe(
-        emails[["data","hora","assunto","mensagem","status"]].fillna(""),
-        use_container_width=False, width=1306, height=160
+        view,
+        use_container_width=False,
+        width=1306,
+        height=160,
+        hide_index=True,   # remove o “0”/índice
     )
-    st.markdown('<div class="footer-note">EMAIL — 1306×160 px | % 2 casas • preços 3 casas • Data/Hora separadas.</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="footer-note">E-MAIL — 1306×160 px | % 2 casas • preços 3 casas • Data/Hora separadas.</div>',
+        unsafe_allow_html=True
+    )
 
 with tab_moedas:
     st.subheader("MOEDAS (A–Z)")
