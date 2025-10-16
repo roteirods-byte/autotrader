@@ -76,4 +76,85 @@ moedas = fetch_table("moedas", engine)
 if moedas.empty:
     moedas = pd.DataFrame({"simbolo": sorted(list_required_coins()), "ativo": True, "observacao": ""})
 else:
-    moedas = moedas.sort
+    moedas = moedas.sort_values(by="simbolo", ascending=True)
+
+entradas = fetch_table("entradas", engine)
+if entradas.empty:
+    entradas = pd.DataFrame([{"data":"", "hora":"", "moeda":"", "side":"",
+                              "preco_entrada":"","stop":"","tp":"","score":"","modo":""}])
+entradas = fmt_prices(entradas, ["preco_entrada","stop","tp"]); entradas = fmt_perc(entradas, ["score"])
+
+saidas = fetch_table("saidas", engine)
+if saidas.empty:
+    saidas = pd.DataFrame([{"data":"", "hora":"", "moeda":"", "side":"", "modo":"",
+                            "entrada":"","preco_atual":"","alvo":"","pnl_pct":"","situacao":""}])
+saidas = fmt_prices(saidas, ["entrada","preco_atual","alvo"]); saidas = fmt_perc(saidas, ["pnl_pct"])
+
+# ============== Layout ==============
+st.title("📊 Painéis do Operador — EMAIL • MOEDAS • ENTRADA • SAÍDA")
+st.caption(f"Atualizado: {now_brt_str()} (BRT). *Somente leitura.*")
+
+tab_email, tab_moedas, tab_entrada, tab_saida = st.tabs(["✉️ EMAIL", "🪙 MOEDAS", "✅ ENTRADA", "📤 SAÍDA"])
+
+# -------- E-MAIL --------
+with tab_email:
+    st.markdown('<h3 class="title-orange">CORREIO ELETRÔNICO</h3>', unsafe_allow_html=True)
+
+    # sessão (carrega ENV só 1x)
+    if "mail_user" not in st.session_state:
+        st.session_state.mail_user = os.getenv("MAIL_USER","")
+        st.session_state.mail_pwd  = os.getenv("MAIL_APP_PASSWORD","")
+        st.session_state.mail_to   = os.getenv("MAIL_TO","")
+
+    # Linha única: rótulo + input (3x) + botão
+    c1,c2,c3,c4,c5,c6,c7 = st.columns([0.8,2.6, 0.8,2.6, 0.8,2.6, 1.4], gap="small")
+    with c1: st.markdown('<div class="label-orange">Principal:</div>', unsafe_allow_html=True)
+    with c2: principal = st.text_input("", value=st.session_state.mail_user, key="mail_user_ui", label_visibility="collapsed")
+    with c3: st.markdown('<div class="label-orange">Senha:</div>', unsafe_allow_html=True)
+    with c4: senha = st.text_input("", value=st.session_state.mail_pwd, type="password", key="mail_pwd_ui", label_visibility="collapsed")
+    with c5: st.markdown('<div class="label-orange">Envio:</div>', unsafe_allow_html=True)
+    with c6: envio = st.text_input("", value=st.session_state.mail_to, key="mail_to_ui", label_visibility="collapsed")
+    with c7: testar = st.button("TESTAR/SALVAR", use_container_width=True)
+
+    if testar:
+        st.session_state.mail_user = principal.strip()
+        st.session_state.mail_pwd  = senha.strip()
+        st.session_state.mail_to   = envio.strip()
+        if not (is_email(st.session_state.mail_user) and is_email(st.session_state.mail_to)):
+            st.error("Verifique os e-mails de remetente e destinatário.")
+        elif not st.session_state.mail_pwd:
+            st.error("Informe a senha de app do Gmail.")
+        else:
+            try:
+                send_email_gmail(st.session_state.mail_user, st.session_state.mail_pwd,
+                                 st.session_state.mail_to, "Teste Autotrader", "Painel OK.")
+                st.success("Configurações salvas e e-mail de TESTE enviado com sucesso.")
+            except Exception as e:
+                st.error(f"Falha ao enviar: {e}")
+
+    st.divider()
+    st.markdown('<h3 class="title-orange">CORREIO ELETRÔNICO</h3>', unsafe_allow_html=True)
+
+    # Tabela 1306×160
+    st.markdown('<div class="email-wrap">', unsafe_allow_html=True)
+    view = emails[["data","hora","assunto","mensagem","status"]].fillna("")
+    st.dataframe(view, use_container_width=False, width=1306, height=160, hide_index=True)
+    st.markdown('<div class="footer-note">CORREIO ELETRÔNICO — 1306×160 px | % 2 casas • preços 3 casas • Data/Hora separadas.</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# -------- MOEDAS --------
+with tab_moedas:
+    st.markdown('<h3 class="title-orange">MOEDAS (A–Z)</h3>', unsafe_allow_html=True)
+    st.dataframe(moedas[["simbolo","ativo","observacao"]].fillna(""), use_container_width=True, height=420)
+
+# -------- ENTRADA --------
+with tab_entrada:
+    st.markdown('<h3 class="title-orange">ENTRADA (somente leitura)</h3>', unsafe_allow_html=True)
+    cols = ["data","hora","moeda","side","preco_entrada","stop","tp","score","modo"]
+    st.dataframe(entradas.reindex(columns=cols).fillna(""), use_container_width=True, height=420)
+
+# -------- SAÍDA --------
+with tab_saida:
+    st.markdown('<h3 class="title-orange">SAÍDA (somente leitura)</h3>', unsafe_allow_html=True)
+    cols = ["data","hora","moeda","side","modo","entrada","preco_atual","alvo","pnl_pct","situacao"]
+    st.dataframe(saidas.reindex(columns=cols).fillna(""), use_container_width=True, height=420)
