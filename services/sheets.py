@@ -11,24 +11,21 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive.file",
 ]
 
-DEFAULT_TICKERS: List[str] = sorted([
-    "AAVE","ADA","APT","ARB","ATOM","AVAX","AXS","BCH","BNB","BTC","DOGE","DOT","ETH","FET","FIL","FLUX",
-    "ICP","INJ","LDO","LINK","LTC","NEAR","OP","PEPE","POL","RATS","RENDER","RUNE","SEI","SHIB","SOL",
-    "SUI","TIA","TNSR","TON","TRX","UNI","WIF","XRP"
-])
-
 def _load_sa_info() -> Dict[str, Any]:
-    raw = os.getenv("GOOGLE_SA_JSON")
-    path = os.getenv("GOOGLE_SA_PATH")
-    if raw:
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            raise RuntimeError("GOOGLE_SA_JSON inválido (não é JSON).")
-    if path:
+    # 1º tenta JSON em variável; 2º tenta arquivo em /etc/secrets/google_sa.json
+    raw = os.getenv("GOOGLE_SA_JSON", "").strip()
+    path = os.getenv("GOOGLE_SA_PATH", "/etc/secrets/google_sa.json")
+
+    if raw.startswith("{"):
+        return json.loads(raw)
+
+    if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    raise RuntimeError("Credencial ausente: defina GOOGLE_SA_JSON ou GOOGLE_SA_PATH.")
+
+    raise RuntimeError(
+        "Credencial Google não encontrada. Defina GOOGLE_SA_JSON ou GOOGLE_SA_PATH (/etc/secrets/google_sa.json)."
+    )
 
 def get_client() -> gspread.Client:
     sa_info = _load_sa_info()
