@@ -117,53 +117,60 @@ tab_email, tab_moedas, tab_entrada, tab_saida = st.tabs(["✉️ EMAIL", "🪙 M
 
 # ================== ABA: E-MAIL ==================
 with tab_email:
-    st.markdown('<h3 class="title-orange">Configurações de e-mail</h3>', unsafe_allow_html=True)
+    # --- estilo específico da barra de e-mail ---
+    st.markdown("""
+    <style>
+    :root { --orange:#ff8c00; }
+    h3.title-orange { color: var(--orange); margin: 0 0 .5rem 0; }
+    .label-orange { color: var(--orange); font-weight: 700; margin-top: 6px; }
+    /* largura fixa dos inputs (250px) e gap de 20px entre colunas desta linha */
+    div[data-testid="stHorizontalBlock"]{ gap:20px !important; }
+    div[data-testid="stColumn"] div[data-baseweb="input"] input{ width:250px !important; }
+    </style>
+    """, unsafe_allow_html=True)
 
-    # Prefill a partir do ambiente (padrão); pode ser alterado pelo operador
+    st.markdown('<h3 class="title-orange">E-MAIL</h3>', unsafe_allow_html=True)
+
+    # valores padrão (sessão)
     if "mail_user" not in st.session_state:
         st.session_state.mail_user = os.getenv("MAIL_USER","")
         st.session_state.mail_pwd  = os.getenv("MAIL_APP_PASSWORD","")
         st.session_state.mail_to   = os.getenv("MAIL_TO","")
 
-    # Inputs em linha (250 px cada + 20 px de gap)
-    st.markdown('<div class="inline">', unsafe_allow_html=True)
-    principal = st.text_input("principal (remetente)", value=st.session_state.mail_user, key="mail_user_ui")
-    st.markdown('</div><div class="inline">', unsafe_allow_html=True)
-    senha = st.text_input("senha (app)", value=st.session_state.mail_pwd, type="password", key="mail_pwd_ui")
-    st.markdown('</div><div class="inline">', unsafe_allow_html=True)
-    envio = st.text_input("envio (destinatário)", value=st.session_state.mail_to, key="mail_to_ui")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    testar = st.button("TESTAR / SALVAR")
+    # linha única: rótulo + input (3x) + botão
+    c1,c2,c3,c4,c5,c6,c7 = st.columns([0.6,3, 0.6,3, 0.6,3, 1.4], gap="small")
+    with c1: st.markdown('<div class="label-orange">Principal:</div>', unsafe_allow_html=True)
+    with c2: principal = st.text_input("", value=st.session_state.mail_user, key="mail_user_ui", label_visibility="collapsed")
+    with c3: st.markdown('<div class="label-orange">Senha:</div>', unsafe_allow_html=True)
+    with c4: senha = st.text_input("", value=st.session_state.mail_pwd, type="password", key="mail_pwd_ui", label_visibility="collapsed")
+    with c5: st.markdown('<div class="label-orange">Envio:</div>', unsafe_allow_html=True)
+    with c6: envio = st.text_input("", value=st.session_state.mail_to, key="mail_to_ui", label_visibility="collapsed")
+    with c7: testar = st.button("TESTAR/SALVAR", use_container_width=True)
 
     if testar:
-        # salva na sessão
         st.session_state.mail_user = principal.strip()
         st.session_state.mail_pwd  = senha.strip()
         st.session_state.mail_to   = envio.strip()
-
-        # validação simples
-        if not (is_email(st.session_state.mail_user) and is_email(st.session_state.mail_to)):
-            st.error("Verifique os e-mails de remetente e destinatário.")
-        elif not st.session_state.mail_pwd:
-            st.error("Informe a senha de app do Gmail.")
-        else:
-            try:
-                send_email_gmail(
-                    st.session_state.mail_user,
-                    st.session_state.mail_pwd,
-                    st.session_state.mail_to,
-                    "Teste Autotrader (Render)",
-                    "E-mail de teste: painel online e credenciais válidas.",
-                )
-                st.success("Configurações salvas e e-mail de TESTE enviado com sucesso.")
-            except Exception as e:
-                st.error(f"Falha ao enviar: {e}")
+        # teste de envio (Gmail + senha de app)
+        try:
+            send_email_gmail(st.session_state.mail_user, st.session_state.mail_pwd,
+                             st.session_state.mail_to, "Teste Autotrader", "Painel OK.")
+            st.success("Configurações salvas e e-mail de TESTE enviado com sucesso.")
+        except Exception as e:
+            st.error(f"Falha ao enviar: {e}")
 
     st.divider()
-    st.markdown('<h3 class="title-orange">E-MAIL</h3>', unsafe_allow_html=True)
+    st.subheader("E-MAIL")
 
-    # Grade 1306x160, sem toolbar e sem índice
+    # grade 1306×160, sem índice/toolbar
+    st.markdown("""
+    <style>
+    .email-wrap{ max-width:1306px; width:1306px; margin-left:0; }
+    div[data-testid="stElementToolbar"]{ display:none !important; }
+    div[data-testid="stDataFrame"] table thead th:first-child,
+    div[data-testid="stDataFrame"] table tbody td:first-child{ display:none; }
+    </style>""", unsafe_allow_html=True)
+
     st.markdown('<div class="email-wrap">', unsafe_allow_html=True)
     view = emails[["data","hora","assunto","mensagem","status"]].fillna("")
     st.dataframe(view, use_container_width=False, width=1306, height=160, hide_index=True)
