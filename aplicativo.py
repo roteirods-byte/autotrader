@@ -5,8 +5,10 @@ import pandas as pd
 import streamlit as st
 from zoneinfo import ZoneInfo
 from datetime import datetime
+
 from db import get_engine, ensure_tables, fetch_table, list_required_coins
 
+# ===== Configurações básicas =====
 TZ = os.getenv("TZ", "America/Sao_Paulo")
 
 st.set_page_config(
@@ -14,18 +16,18 @@ st.set_page_config(
     layout="wide",
 )
 
-# ======== Estilo e helpers ========
+# ===== Estilo (cores e detalhes visuais) =====
 CSS = """
 <style>
-/* largura do painel EMAIL */
 div[data-testid="stDataFrame"] div[role="grid"] { font-size: 0.95rem; }
-.badge-long { color: #00E676; font-weight: 700; }  /* verde */
-.badge-short { color: #FF5252; font-weight: 700; } /* vermelho */
+.badge-long { color: #00E676; font-weight: 700; }
+.badge-short { color: #FF5252; font-weight: 700; }
 .footer-note { opacity: 0.6; font-size: 0.85rem; }
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
+# ===== Helpers de formato =====
 def fmt_prices(df: pd.DataFrame, price_cols: list[str]) -> pd.DataFrame:
     for c in price_cols:
         if c in df.columns:
@@ -38,10 +40,11 @@ def fmt_perc(df: pd.DataFrame, perc_cols: list[str]) -> pd.DataFrame:
             df[c] = pd.to_numeric(df[c], errors="coerce").round(2)
     return df
 
-def now_brt_str():
+def now_brt_str() -> str:
     return datetime.now(ZoneInfo(TZ)).strftime("%d/%m/%Y %H:%M:%S")
 
-# ======== Dados (somente leitura) ========
+# ===== Dados (somente leitura do BANCO) =====
+# IMPORTANTE: esta versão NÃO lê Google Sheets -> não usa credenciais.
 engine = get_engine()
 ensure_tables(engine)
 
@@ -53,7 +56,6 @@ if emails.empty:
 # MOEDAS
 moedas = fetch_table("moedas", engine)
 if moedas.empty:
-    # lista A–Z
     moedas = pd.DataFrame({"simbolo": sorted(list_required_coins()), "ativo": True, "observacao": ""})
 else:
     moedas = moedas.sort_values(by="simbolo", ascending=True)
@@ -76,9 +78,9 @@ if saidas.empty:
 saidas = fmt_prices(saidas, ["entrada","preco_atual","alvo"])
 saidas = fmt_perc(saidas, ["pnl_pct"])
 
-# ======== Layout ========
+# ===== Layout =====
 st.title("📊 Painéis do Operador — EMAIL • MOEDAS • ENTRADA • SAÍDA")
-st.caption(f"Atualizado: {now_brt_str()} (BRT). Visual padronizado conforme prints. *Somente leitura.*")
+st.caption(f"Atualizado: {now_brt_str()} (BRT). Visual padronizado. *Somente leitura.*")
 
 tab_email, tab_moedas, tab_entrada, tab_saida = st.tabs(["✉️ EMAIL", "🪙 MOEDAS", "✅ ENTRADA", "📤 SAÍDA"])
 
@@ -90,7 +92,7 @@ with tab_email:
         width=1306,
         height=160
     )
-    st.markdown('<div class="footer-note">Painel EMAIL — 1306×160 px | % com 2 casas • preços com 3 casas • Data/Hora separadas.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="footer-note">Painel EMAIL — 1306×160 px | % com 2 casas • preços 3 casas • Data/Hora separadas.</div>', unsafe_allow_html=True)
 
 with tab_moedas:
     st.subheader("MOEDAS (A–Z)")
@@ -99,7 +101,7 @@ with tab_moedas:
         use_container_width=True,
         height=420
     )
-    st.markdown('<div class="footer-note">Sem coluna “alavancagem”. Ordem alfabética A–Z. Sincronização da lista ocorre na etapa de engine.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="footer-note">Sem coluna “alavancagem”. Ordem alfabética A–Z.</div>', unsafe_allow_html=True)
 
 with tab_entrada:
     st.subheader("ENTRADA (somente leitura)")
@@ -107,7 +109,7 @@ with tab_entrada:
     view = entradas.reindex(columns=cols).fillna("")
     st.dataframe(view, use_container_width=True, height=420)
     st.markdown(
-        '<div class="footer-note">LONG em <span class="badge-long">verde</span> • SHORT em <span class="badge-short">vermelho</span>. '
+        '<div class="footer-note">LONG <span class="badge-long">verde</span> • SHORT <span class="badge-short">vermelho</span>. '
         'Preços 3 casas • % 2 casas • Data/Hora separadas.</div>',
         unsafe_allow_html=True
     )
@@ -118,6 +120,6 @@ with tab_saida:
     view = saidas.reindex(columns=cols).fillna("")
     st.dataframe(view, use_container_width=True, height=420)
     st.markdown(
-        '<div class="footer-note">Campos: moeda, side, modo, entrada, preço atual, alvo, PnL%, situação, data, hora, excluir (controle será adicionado após autorização).</div>',
+        '<div class="footer-note">Campos: moeda, side, modo, entrada, preço atual, alvo, PnL%, situação, data, hora.</div>',
         unsafe_allow_html=True
     )
