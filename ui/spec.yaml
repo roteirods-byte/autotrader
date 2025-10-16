@@ -1,0 +1,11 @@
+cores:
+  laranja: "#ff8c00"
+
+layout:
+  input_largura_px: 250
+  gap_px: 20
+
+tabela_email:
+  largura_px: 1306
+  altura_px: 160
+  col_narrow_px: 90
