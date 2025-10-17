@@ -1,4 +1,26 @@
 from __future__ import annotations
+"side",
+"modo",
+"preco_entrada",
+"preco_atual",
+"alvo",
+"pnl_pct",
+"situacao",
+],
+}
+
+
+REQUIRED_COINS: List[str] = [
+"AAVE","ADA","APT","ARB","ATOM","AVAX","AXS","BCH","BNB","BTC",
+"DOGE","DOT","ETH","FET","FIL","FLUX","ICP","INJ","LDO","LINK",
+"LTC","NEAR","OP","PEPE","POL","RATS","RENDER","RUNE","SEI","SHIB",
+"SOL","SUI","TIA","TNSR","TON","TRX","UNI","WIF","XRP",
+]
+
+
+
+
+def now_brt_str() -> tuple[str, str, str]:
 tz = pytz.timezone(TZ)
 dt = datetime.now(tz)
 return dt.strftime("%Y-%m-%d"), dt.strftime("%H:%M:%S"), dt.isoformat()
