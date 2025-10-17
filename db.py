@@ -1,4 +1,5 @@
 from __future__ import annotations
+def now_brt_str() -> tuple[str, str, str]:
 tz = pytz.timezone(TZ)
 dt = datetime.now(tz)
 return dt.strftime("%Y-%m-%d"), dt.strftime("%H:%M:%S"), dt.isoformat()
