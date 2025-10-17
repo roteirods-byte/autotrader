@@ -1,5 +1,23 @@
+# Python
 __pycache__/
 *.pyc
-.env
-*.env
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+ENV/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+
+# Build / misc
+dist/
+build/
 .cache/
