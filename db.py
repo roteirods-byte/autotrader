@@ -1,22 +1,4 @@
 from __future__ import annotations
-"alvo",
-"pnl_pct",
-"situacao",
-],
-}
-
-
-REQUIRED_COINS: List[str] = [
-"AAVE","ADA","APT","ARB","ATOM","AVAX","AXS","BCH","BNB","BTC",
-"DOGE","DOT","ETH","FET","FIL","FLUX","ICP","INJ","LDO","LINK",
-"LTC","NEAR","OP","PEPE","POL","RATS","RENDER","RUNE","SEI","SHIB",
-"SOL","SUI","TIA","TNSR","TON","TRX","UNI","WIF","XRP",
-]
-
-
-
-
-def now_brt_str() -> tuple[str, str, str]:
 tz = pytz.timezone(TZ)
 dt = datetime.now(tz)
 return dt.strftime("%Y-%m-%d"), dt.strftime("%H:%M:%S"), dt.isoformat()
@@ -68,12 +50,11 @@ if not cols:
 return pd.DataFrame()
 conn = get_conn(db_path)
 try:
-# Seleciona apenas as colunas esperadas, se existirem
-cur = conn.execute(
-f"SELECT name FROM pragma_table_info(?)",
-(name,),
-)
-existing = {row[0] for row in cur.fetchall()}
+# PRAGMA table_info não aceita parâmetro bind. Usamos f-string
+# com nome vindo de lista interna (whitelist) para segurança.
+cur = conn.execute(f"PRAGMA table_info({name})")
+# colunas: 0=cid, 1=name, 2=type, ...
+existing = {row[1] for row in cur.fetchall()}
 select_cols = [c for c in cols if c in existing]
 if not select_cols:
 return pd.DataFrame(columns=cols)
