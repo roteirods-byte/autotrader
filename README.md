@@ -13,3 +13,4 @@ from db import init_db; init_db()
 print('DB ok')
 PY
 streamlit run aplicativo.py
+CI: teste
