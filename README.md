@@ -5,3 +5,4 @@ roteirods-byte-patch-3
 
 chore: disparo de CI
 main
+chore: forçar push no main para registrar check do CI
