@@ -1,19 +1,13 @@
-from __future__ import annotations
+# ui/theme.py
 import streamlit as st
 
+CSS = """
+:root{ --bg:#0b2533; --fg:#e7edf3; --accent:#ff7b1b; }
+.stApp, .stApp header { background: var(--bg) !important; }
+.stTabs [data-baseweb="tab"] p{ color:var(--fg) !important; }
+.stTabs [data-baseweb="tab"][aria-selected="true"] p{ color:var(--accent) !important; font-weight:700; }
+"""
 
-def apply_theme() -> None:
-    css = """    <style>
-      .main, .stApp { background-color: #0b1e3a; }
-      h1, h2, h3, h4 { color: #ffa500 !important; }
-      .stDataFrame, .stTable, .stMarkdown, .stText, div, span, p, td, th {
-        color: #ffffff !important;
-      }
-      .panel {
-        border: 1px solid #ffffff55; border-radius: 12px; padding: 10px; margin-bottom: 12px;
-      }
-      .long { color: #00d26a !important; }
-      .short { color: #ff4d4f !important; }
-    </style>
-    """
-    st.markdown(css, unsafe_allow_html=True)
+def apply_theme():
+    st.set_page_config(page_title="Autotrader", layout="wide")
+    st.markdown(f"<style>{CSS}</style>", unsafe_allow_html=True)
