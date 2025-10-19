@@ -38,6 +38,7 @@ h1, h2, h3, h4, h5, h6 {{
 h1.page-title {{ font-size: 34px; margin: 8px 0 18px 0; }}
 .hr-thin {{ height:1px; background: rgba(255,255,255,.12); margin: 6px 0 16px; }}
 
+/* Abas */
 .stTabs [data-baseweb="tab"] {{
   background: transparent;
   border: 1px solid rgba(255,255,255,.10);
@@ -53,13 +54,12 @@ h1.page-title {{ font-size: 34px; margin: 8px 0 18px 0; }}
 .stTabs [data-baseweb="tab"]:hover {{ border-color: var(--orange); }}
 
 /* ======== CONTROLES: 250px + gap 50px ======== */
-/* Alvo genérico dos inputs de texto e senha do Streamlit */
 div[data-testid="stTextInput"],
 div[data-testid="stPassword"] {{
   width: 250px !important;
   display: inline-block !important;
   vertical-align: top;
-  margin-right: 50px;           /* gap entre campos */
+  margin-right: 50px;     /* gap entre campos */
 }}
 div[data-testid="stTextInput"] input,
 div[data-testid="stPassword"] input {{
@@ -105,7 +105,7 @@ st.markdown(CSS, unsafe_allow_html=True)
 
 
 # -----------------------------
-# Utilitário de e-mail (Gmail TLS)
+# Envio de e-mail (Gmail TLS)
 # -----------------------------
 def send_test_mail(
     user: str,
@@ -132,7 +132,7 @@ def send_test_mail(
 
 
 # -----------------------------
-# Carrega padrões do ambiente (Render)
+# Defaults do ambiente (Render)
 # -----------------------------
 defaults = {
     "mail_user": os.getenv("MAIL_USER", ""),
@@ -142,6 +142,9 @@ defaults = {
 for k, v in defaults.items():
     st.session_state.setdefault(k, v)
 
+st.session_state.setdefault("status_msg", "")
+st.session_state.setdefault("status_cls", "")
+
 
 # -----------------------------
 # Cabeçalho + Abas
@@ -149,16 +152,16 @@ for k, v in defaults.items():
 st.markdown('<h1 class="page-title">PAINÉIS DA AUTOMAÇÃO</h1>', unsafe_allow_html=True)
 st.markdown('<div class="hr-thin"></div>', unsafe_allow_html=True)
 
-tabs = st.tabs(["CORREIO ELETRÔNICO", "MOEDAS", "ENTRADA", "SAÍDA"])
+tabs = st.tabs(["E-MAIL", "MOEDAS", "ENTRADA", "SAÍDA"])
 
 # =============================
-# 1) CORREIO ELETRÔNICO
+# 1) E-MAIL
 # =============================
 with tabs[0]:
-    st.markdown("## CORREIO ELETRÔNICO")
+    st.markdown("## E-MAIL")
 
-    # Linha de campos (3) — cada um com 250px (via CSS)
-    c1, c2, c3 = st.columns([1, 1, 1])
+    # Mesma LINHA: 3 campos + botão + status
+    c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 2.2])
 
     with c1:
         st.markdown('<div class="label">Principal:</div>', unsafe_allow_html=True)
@@ -166,46 +169,52 @@ with tabs[0]:
 
     with c2:
         st.markdown('<div class="label">Senha:</div>', unsafe_allow_html=True)
-        mail_pass = st.text_input(
-            "Senha", key="mail_pass", type="password", label_visibility="collapsed"
-        )
+        mail_pass = st.text_input("Senha", type="password", key="mail_pass", label_visibility="collapsed")
 
     with c3:
         st.markdown('<div class="label">Envio:</div>', unsafe_allow_html=True)
         mail_to = st.text_input("Envio", key="mail_to", label_visibility="collapsed")
 
-    # Botão (250px) + status na mesma linha
-    cb, cs = st.columns([1, 4])
-    with cb:
+    with c4:
+        st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)  # alinhar top
         send_now = st.button("TESTAR/SALVAR")
-    with cs:
-        status = st.empty()
 
+    with c5:
+        # espaço para status na MESMA linha
+        status_placeholder = st.empty()
+
+    # Mostrar status anterior (se existir) ao carregar
+    if st.session_state["status_msg"]:
+        status_placeholder.markdown(
+            f'<div class="{st.session_state["status_cls"]}">{st.session_state["status_msg"]}</div>',
+            unsafe_allow_html=True,
+        )
+
+    # Clique no botão
     if send_now:
         if not mail_user or not mail_pass or not mail_to:
-            status.markdown(
-                '<div class="status-err">Preencha todos os campos para testar.</div>',
-                unsafe_allow_html=True,
-            )
+            st.session_state["status_msg"] = "Preencha todos os campos para testar."
+            st.session_state["status_cls"] = "status-err"
         else:
             err = send_test_mail(mail_user, mail_pass, mail_to)
             if err is None:
-                status.markdown(
-                    '<div class="status-ok">Configuração salva e e-mail de teste enviado ✅</div>',
-                    unsafe_allow_html=True,
-                )
+                st.session_state["status_msg"] = "Configuração salva e e-mail de teste enviado ✅"
+                st.session_state["status_cls"] = "status-ok"
             else:
-                status.markdown(
-                    f'<div class="status-err">Falha ao enviar e-mail: {err}</div>',
-                    unsafe_allow_html=True,
-                )
+                st.session_state["status_msg"] = f"Falha ao enviar e-mail: {err}"
+                st.session_state["status_cls"] = "status-err"
+
+        status_placeholder.markdown(
+            f'<div class="{st.session_state["status_cls"]}">{st.session_state["status_msg"]}</div>',
+            unsafe_allow_html=True,
+        )
 
 # =============================
 # 2) MOEDAS (placeholder)
 # =============================
 with tabs[1]:
     st.markdown("## MOEDAS")
-    st.info("Vamos estilizar esta aba depois do e-mail, seguindo o modelo.")
+    st.info("Vamos estilizar esta aba depois do E-MAIL, seguindo o mesmo padrão.")
 
 # =============================
 # 3) ENTRADA (placeholder)
