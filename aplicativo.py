@@ -1,14 +1,14 @@
 import streamlit as st
 
 def main():
-    # Deve ser a 1ª chamada do app
+    # 1º comando do app
     st.set_page_config(page_title="Autotrader", page_icon="📈", layout="centered")
 
     st.markdown("## PAINÉIS DA AUTOMAÇÃO")
     tab_email, tab_moedas, tab_entrada, tab_saida = st.tabs(["EMAIL", "MOEDAS", "ENTRADA", "SAÍDA"])
 
     with tab_email:
-        # Import tardio evita erros de configuração/duplicação
+        # Import tardio e única chamada
         from panels.email_panel import render as email_render
         email_render()
 
