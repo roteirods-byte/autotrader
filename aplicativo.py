@@ -5,6 +5,7 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from typing import Dict
+import html as _html
 
 import psycopg2
 import streamlit as st
@@ -18,10 +19,8 @@ def inject_css() -> None:
     st.markdown(
         f"""
         <style>
-        /* Fundo geral */
         .stApp {{ background:#0b1f2f; }}
 
-        /* Título principal */
         .app-title h1 {{
             font-size: 2.2rem;
             font-weight: 800;
@@ -30,7 +29,7 @@ def inject_css() -> None:
         }}
         .app-subtitle {{ border-top:2px solid rgba(255,154,26,.25); margin-bottom:1rem; }}
 
-        /* Abas (orelhinhas) */
+        /* Abas */
         .stTabs [data-baseweb="tab-list"] {{
             gap: 8px;
             background: transparent;
@@ -40,16 +39,15 @@ def inject_css() -> None:
             border-radius: 10px 10px 0 0;
             background:#0e2740;
             border:1px solid rgba(255,255,255,.08);
-            color:{ORANGE};                      /* texto laranja nas abas */
+            color:{ORANGE};
             font-weight:700;
         }}
         .stTabs [aria-selected="true"] {{
             background:#123050 !important;
-            color:{ORANGE} !important;           /* manter laranja também na aba ativa */
+            color:{ORANGE} !important;
             border-bottom-color:#123050 !important;
         }}
 
-        /* Painel “cartão” */
         .panel {{
             background:#0e2740;
             border:1px solid rgba(255,255,255,.08);
@@ -58,7 +56,6 @@ def inject_css() -> None:
             box-shadow:0 8px 30px rgba(0,0,0,.20);
         }}
 
-        /* Rótulos em linha */
         .inline-label {{
             color:{ORANGE};
             font-weight:800;
@@ -67,18 +64,16 @@ def inject_css() -> None:
             white-space:nowrap;
         }}
 
-        /* Linha flex para controlar larguras/gaps */
         .inline-row {{
             display:flex;
             align-items:flex-end;
             flex-wrap:wrap;
-            gap:50px;                             /* 3) gap de 50px entre as caixas */
+            gap:50px;               /* 3) gap de 50px entre as caixas */
         }}
 
-        /* Caixas com largura fixa de 250px */
         .inline-row .unit {{ width:250px; }}
         .inline-row .unit input {{
-            width:250px !important;               /* 2) inputs 250px */
+            width:250px !important; /* 2) inputs 250px */
             height:42px;
             background:#0b2236;
             color:#e8eef5;
@@ -87,27 +82,25 @@ def inject_css() -> None:
         }}
         .inline-row .unit input::placeholder {{ color:#7da0bd; opacity:.75; }}
 
-        /* Botão com o mesmo tamanho e alinhamento */
         .inline-row .unit-btn button {{
-            width:250px;                          /* 4) mesmo tamanho dos inputs */
+            width:250px;            /* 4) botão mesmo tamanho dos inputs */
             height:42px;
             border-radius:10px;
             font-weight:800;
             letter-spacing:.3px;
-            background:{ORANGE};                  /* 1) botão laranja */
+            background:{ORANGE};    /* 1) botão laranja */
             color:#0b1f2f;
             border:1px solid rgba(255,255,255,.12);
         }}
         .inline-row .unit-btn button:hover {{ filter:brightness(1.05); }}
 
-        /* Mensagem de confirmação alinhada à direita do botão */
         .inline-row .unit-msg {{
             min-width: 280px;
             color:#d8f3dc;
         }}
 
-        /* Esconder eventuais mensagens auxiliares/resíduos de formulários */
-        .stForm, .stCaption {{ display:none !important; }}
+        /* Esconde artefatos */
+        .stCaption {{ display:none !important; }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -199,67 +192,70 @@ def render_email_panel() -> None:
     cfg = _load_email_config()
     st.markdown('<div class="panel">', unsafe_allow_html=True)
 
-    # Cabeçalho do painel
     st.markdown('<div class="inline-label" style="font-size:1rem;">E-MAIL</div>', unsafe_allow_html=True)
     st.markdown('<hr style="border-color:rgba(255,255,255,.12);" />', unsafe_allow_html=True)
 
+    # Mensagem persistente (sem JS)
+    msg_html = st.session_state.get("email_msg", "")
     # Linha com campos + botão + mensagem
-    msg_placeholder = st.empty()  # manter referência para mostrar mensagem no final (fallback)
-
-    # Construímos a linha manualmente para garantir 250px + gap 50px
-    # Cada "unit" tem 250px; gap entre elas é controlado por CSS (.inline-row)
     st.markdown('<div class="inline-row">', unsafe_allow_html=True)
 
     # Principal
-    col_html = """
-        <div class="unit">
-            <div class="inline-label">Principal:</div>
-        </div>
-    """
-    st.markdown(col_html, unsafe_allow_html=True)
-    principal = st.text_input("principal_hidden", value=cfg["principal"], placeholder="seuemail@gmail.com", label_visibility="hidden", key="email_principal")
+    st.markdown('<div class="unit"><div class="inline-label">Principal:</div></div>', unsafe_allow_html=True)
+    principal = st.text_input(
+        "principal_hidden",
+        value=cfg["principal"],
+        placeholder="seuemail@gmail.com",
+        label_visibility="hidden",
+        key="email_principal",
+    )
 
     # Senha
     st.markdown('<div class="unit"><div class="inline-label">Senha:</div></div>', unsafe_allow_html=True)
-    app_password = st.text_input("senha_hidden", value=cfg["app_password"], placeholder="senha de app", type="password", label_visibility="hidden", key="email_senha")
+    app_password = st.text_input(
+        "senha_hidden",
+        value=cfg["app_password"],
+        placeholder="senha de app",
+        type="password",
+        label_visibility="hidden",
+        key="email_senha",
+    )
 
     # Envio
     st.markdown('<div class="unit"><div class="inline-label">Envio:</div></div>', unsafe_allow_html=True)
-    enviar_para = st.text_input("envio_hidden", value=cfg["enviar_para"], placeholder="destinatario@provedor.com", label_visibility="hidden", key="email_envio")
+    enviar_para = st.text_input(
+        "envio_hidden",
+        value=cfg["enviar_para"],
+        placeholder="destinatario@provedor.com",
+        label_visibility="hidden",
+        key="email_envio",
+    )
 
     # Botão
     st.markdown('<div class="unit unit-btn">', unsafe_allow_html=True)
     salvar = st.button("TESTAR/SALVAR", key="btn_testar_salvar")
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Espaço onde exibimos a confirmação alinhada à direita do botão
-    st.markdown('<div class="unit unit-msg" id="email_msg_slot"></div>', unsafe_allow_html=True)
+    # Slot de mensagem alinhado
+    st.markdown(f'<div class="unit unit-msg">{msg_html}</div>', unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)  # fecha inline-row
     st.markdown("</div>", unsafe_allow_html=True)  # fecha panel
 
     if salvar:
         if not principal or not app_password or not enviar_para:
-            st.markdown(
-                "<script>document.getElementById('email_msg_slot').innerHTML="
-                "'<span style=\"color:#ffd166;\">⚠️ Preencha Principal, Senha e Envio.</span>';</script>",
-                unsafe_allow_html=True,
-            )
+            st.session_state["email_msg"] = '<span style="color:#ffd166;">⚠️ Preencha Principal, Senha e Envio.</span>'
         else:
             try:
                 _save_email_config(principal, app_password, enviar_para)
                 _send_test_email(principal, app_password, enviar_para)
-                st.markdown(
-                    "<script>document.getElementById('email_msg_slot').innerHTML="
-                    "'<span style=\"color:#8be28b;\">✅ Configuração salva e e-mail de teste enviado.</span>';</script>",
-                    unsafe_allow_html=True,
-                )
+                st.session_state["email_msg"] = '<span style="color:#8be28b;">✅ Configuração salva e e-mail de teste enviado.</span>'
             except Exception as exc:  # noqa: BLE001
-                st.markdown(
-                    "<script>document.getElementById('email_msg_slot').innerHTML="
-                    f"'<span style=\"color:#ff7b7b;\">❌ Falha ao salvar/testar e-mail: {str(exc).replace(\"'\",\"&#39;\")}</span>';</script>",
-                    unsafe_allow_html=True,
-                )
+                safe = _html.escape(str(exc))
+                st.session_state["email_msg"] = f'<span style="color:#ff7b7b;">❌ Falha ao salvar/testar e-mail: {safe}</span>'
+
+        # Força re-render imediato com a mensagem
+        st.rerun()
 
 
 # =========================
@@ -270,11 +266,9 @@ def main() -> None:
     inject_css()
     _ensure_email_table()
 
-    # Título
     st.markdown('<div class="app-title"><h1>PAINÉIS DA AUTOMAÇÃO</h1></div>', unsafe_allow_html=True)
     st.markdown('<div class="app-subtitle"></div>', unsafe_allow_html=True)
 
-    # Abas com nomes no padrão
     tabs = st.tabs(["E-MAIL", "MOEDAS", "ENTRADA", "SAÍDA"])
     with tabs[0]:
         render_email_panel()
