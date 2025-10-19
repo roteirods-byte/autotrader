@@ -1,284 +1,186 @@
-# autotrader/aplicativo.py
+# arquivo: aplicativo.py
+# Autotrader — Painéis (Streamlit)
+# Versão focada no painel "E-MAIL" conforme padrão visual do projeto.
+
 from __future__ import annotations
 
 import os
+import html
 import smtplib
 from email.mime.text import MIMEText
-from typing import Dict
-import html as _html
 
-import psycopg2
 import streamlit as st
 
 
-# =========================
-# CSS (tema e layout)
-# =========================
-def inject_css() -> None:
-    ORANGE = "#ff9a1a"
-    st.markdown(
-        f"""
-        <style>
-        .stApp {{ background:#0b1f2f; }}
+# -----------------------------------------------------------------------------
+# CONFIGURAÇÃO BÁSICA DA PÁGINA
+# -----------------------------------------------------------------------------
+st.set_page_config(
+    page_title="Autotrader — Painéis",
+    page_icon="📊",
+    layout="wide",
+)
 
-        .app-title h1 {{
-            font-size: 2.2rem;
-            font-weight: 800;
-            color: {ORANGE};
-            margin: 0 0 .4rem 0;
-        }}
-        .app-subtitle {{ border-top:2px solid rgba(255,154,26,.25); margin-bottom:1rem; }}
+# -----------------------------------------------------------------------------
+# ESTILO/TEMA GLOBAL — cores, abas em abóbora, inputs 250px, espaçamento 50px
+# -----------------------------------------------------------------------------
+ACCENT = "#ff7b1b"  # abóbora do projeto
 
-        /* Abas */
-        .stTabs [data-baseweb="tab-list"] {{
-            gap: 8px;
-            background: transparent;
-        }}
-        .stTabs [data-baseweb="tab"] {{
-            height: 40px;
-            border-radius: 10px 10px 0 0;
-            background:#0e2740;
-            border:1px solid rgba(255,255,255,.08);
-            color:{ORANGE};
-            font-weight:700;
-        }}
-        .stTabs [aria-selected="true"] {{
-            background:#123050 !important;
-            color:{ORANGE} !important;
-            border-bottom-color:#123050 !important;
-        }}
+GLOBAL_CSS = f"""
+<style>
+:root {{ --accent: {ACCENT}; }}
 
-        .panel {{
-            background:#0e2740;
-            border:1px solid rgba(255,255,255,.08);
-            border-radius:12px;
-            padding:14px;
-            box-shadow:0 8px 30px rgba(0,0,0,.20);
-        }}
+/* Esconde menu e rodapé do Streamlit */
+#MainMenu {{ visibility: hidden; }}
+footer {{ visibility: hidden; }}
 
-        .inline-label {{
-            color:{ORANGE};
-            font-weight:800;
-            letter-spacing:.2px;
-            margin:.2rem 0 .25rem 0;
-            white-space:nowrap;
-        }}
+/* Abas (st.tabs) — rótulos em abóbora */
+.stTabs [data-baseweb="tab"] p {{
+  color: var(--accent) !important;
+  font-weight: 700;
+}}
+.stTabs [aria-selected="true"] p {{
+  color: var(--accent) !important;
+}}
 
-        .inline-row {{
-            display:flex;
-            align-items:flex-end;
-            flex-wrap:wrap;
-            gap:50px;               /* 3) gap de 50px entre as caixas */
-        }}
+/* Títulos/legendas em abóbora */
+h1, h2, h3, h4, h5, h6,
+label, .stMarkdown strong {{
+  color: var(--accent) !important;
+}}
 
-        .inline-row .unit {{ width:250px; }}
-        .inline-row .unit input {{
-            width:250px !important; /* 2) inputs 250px */
-            height:42px;
-            background:#0b2236;
-            color:#e8eef5;
-            border:1px solid rgba(255,255,255,.12);
-            border-radius:10px;
-        }}
-        .inline-row .unit input::placeholder {{ color:#7da0bd; opacity:.75; }}
+/* Inputs com largura 250px e altura 40px */
+div.stTextInput input,
+div[data-testid="stPassword"] input,
+textarea {{
+  width: 250px !important;
+  height: 40px !important;
+}}
 
-        .inline-row .unit-btn button {{
-            width:250px;            /* 4) botão mesmo tamanho dos inputs */
-            height:42px;
-            border-radius:10px;
-            font-weight:800;
-            letter-spacing:.3px;
-            background:{ORANGE};    /* 1) botão laranja */
-            color:#0b1f2f;
-            border:1px solid rgba(255,255,255,.12);
-        }}
-        .inline-row .unit-btn button:hover {{ filter:brightness(1.05); }}
+/* Dá um respiro de 50px entre os campos (lado direito) */
+div.stTextInput, div[data-testid="stPassword"] {{
+  padding-right: 50px !important;
+}}
 
-        .inline-row .unit-msg {{
-            min-width: 280px;
-            color:#d8f3dc;
-        }}
+/* Botão do mesmo tamanho dos inputs */
+div.stButton > button {{
+  width: 250px !important;
+  height: 40px !important;
+  background: var(--accent) !important;
+  color: #0b2337 !important;   /* contraste no fundo escuro */
+  font-weight: 700 !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+}}
 
-        /* Esconde artefatos */
-        .stCaption {{ display:none !important; }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+/* Linha divisória mais discreta */
+hr {{ opacity: .15; }}
+</style>
+"""
+st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 
 
-# =========================
-# DB (Postgres)
-# =========================
-def _get_conn():
-    url = os.environ.get("DATABASE_URL")
-    if not url:
-        st.error("DATABASE_URL não configurado no serviço Web (Render → Ambiente).")
-        st.stop()
-    return psycopg2.connect(url)
+# -----------------------------------------------------------------------------
+# FUNÇÃO: Envio de e-mail de teste via Gmail SMTP
+# -----------------------------------------------------------------------------
+def enviar_email_teste(user: str, app_password: str, destinatario: str) -> tuple[bool, str]:
+    """
+    Envia um e-mail de teste usando Gmail (SMTP SSL porta 465).
+    Retorna (ok, erro).
+    """
+    try:
+        corpo = "✔️ Teste de e-mail do Autotrader — configuração salva com sucesso."
+        msg = MIMEText(corpo)
+        msg["Subject"] = "Autotrader — Teste de e-mail"
+        msg["From"] = user
+        msg["To"] = destinatario
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
+            s.login(user, app_password)
+            s.sendmail(user, [destinatario], msg.as_string())
+
+        return True, ""
+    except Exception as exc:  # nunca deixa quebrar a interface
+        return False, str(exc)
 
 
-def _ensure_email_table() -> None:
-    with _get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS email_config (
-                id           SERIAL PRIMARY KEY,
-                principal    TEXT NOT NULL,
-                app_password TEXT NOT NULL,
-                enviar_para  TEXT NOT NULL,
-                updated_at   TIMESTAMPTZ DEFAULT now()
-            );
-            """
-        )
-        conn.commit()
+# -----------------------------------------------------------------------------
+# CABEÇALHO
+# -----------------------------------------------------------------------------
+st.markdown("## PAINÉIS DA AUTOMAÇÃO")
+st.markdown("---")
 
+# -----------------------------------------------------------------------------
+# ABAS
+# -----------------------------------------------------------------------------
+abas = st.tabs(["E-MAIL", "MOEDAS", "ENTRADA", "SAÍDA"])
 
-def _load_email_config() -> Dict[str, str]:
-    with _get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            "SELECT principal, app_password, enviar_para FROM email_config WHERE id=1;"
-        )
-        row = cur.fetchone()
-        if row:
-            return {"principal": row[0], "app_password": row[1], "enviar_para": row[2]}
-    return {"principal": "", "app_password": "", "enviar_para": ""}
+# =============================================================================
+# ABA 1 — E-MAIL
+# =============================================================================
+with abas[0]:
+    st.markdown("### E-MAIL")
 
+    # Valores padrão: lê das variáveis de ambiente (Render) e permite sobrescrever na sessão.
+    user_val = st.session_state.get("MAIL_USER") or os.getenv("MAIL_USER", "")
+    pass_val = st.session_state.get("MAIL_APP_PASSWORD") or os.getenv("MAIL_APP_PASSWORD", "")
+    to_val   = st.session_state.get("MAIL_TO") or os.getenv("MAIL_TO", "")
 
-def _save_email_config(principal: str, app_password: str, enviar_para: str) -> None:
-    with _get_conn() as conn, conn.cursor() as cur:
-        cur.execute("SELECT 1 FROM email_config WHERE id=1;")
-        if cur.fetchone():
-            cur.execute(
-                """
-                UPDATE email_config
-                   SET principal=%s,
-                       app_password=%s,
-                       enviar_para=%s,
-                       updated_at=now()
-                 WHERE id=1;
-                """,
-                (principal, app_password, enviar_para),
-            )
+    # 3 campos + 1 coluna para botão/mensagem (alinhados na mesma linha)
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 1.6])
+
+    with c1:
+        user_in = st.text_input("Principal:", value=user_val, key="ui_mail_user")
+
+    with c2:
+        pass_in = st.text_input("Senha:", value=pass_val, type="password", key="ui_mail_pass")
+
+    with c3:
+        to_in = st.text_input("Envio:", value=to_val, key="ui_mail_to")
+
+    with c4:
+        bt = st.button("TESTAR/SALVAR", key="btn_testar_salvar")
+        msg = st.empty()  # mensagem aparece aqui, logo após o botão
+
+    if bt:
+        # Persiste no estado da sessão (para a página atual).
+        # OBS: Para persistir "de verdade" (após reinício), é preciso salvar em DB/secrets/env.
+        st.session_state["MAIL_USER"] = user_in
+        st.session_state["MAIL_APP_PASSWORD"] = pass_in
+        st.session_state["MAIL_TO"] = to_in
+
+        ok, erro = enviar_email_teste(user_in, pass_in, to_in)
+        if ok:
+            msg.success("Configuração salva e e-mail de teste enviado ✅")
         else:
-            cur.execute(
-                """
-                INSERT INTO email_config (id, principal, app_password, enviar_para)
-                VALUES (1, %s, %s, %s);
-                """,
-                (principal, app_password, enviar_para),
-            )
-        conn.commit()
+            # Escapa HTML para não quebrar a página (corrige aquele SyntaxError do print)
+            msg.error(f"Falha ao salvar/testar e-mail: {html.escape(erro)}")
+
+    st.markdown("---")
 
 
-# =========================
-# E-mail (envio de teste)
-# =========================
-def _send_test_email(principal: str, app_password: str, enviar_para: str) -> None:
-    msg = MIMEText("Teste ok: painel E-MAIL configurado com sucesso ✅")
-    msg["Subject"] = "Autotrader - Teste de e-mail"
-    msg["From"] = principal
-    msg["To"] = enviar_para
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login(principal, app_password)
-        smtp.send_message(msg)
+# =============================================================================
+# ABA 2 — MOEDAS (placeholder seguro por enquanto)
+# =============================================================================
+with abas[1]:
+    st.markdown("### MOEDAS")
+    st.info("Painel de MOEDAS será ajustado após concluirmos o E-MAIL. (Placeholder seguro.)")
+    st.markdown("---")
 
 
-# =========================
-# UI — Painel E-MAIL
-# =========================
-def render_email_panel() -> None:
-    cfg = _load_email_config()
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-
-    st.markdown('<div class="inline-label" style="font-size:1rem;">E-MAIL</div>', unsafe_allow_html=True)
-    st.markdown('<hr style="border-color:rgba(255,255,255,.12);" />', unsafe_allow_html=True)
-
-    # Mensagem persistente (sem JS)
-    msg_html = st.session_state.get("email_msg", "")
-    # Linha com campos + botão + mensagem
-    st.markdown('<div class="inline-row">', unsafe_allow_html=True)
-
-    # Principal
-    st.markdown('<div class="unit"><div class="inline-label">Principal:</div></div>', unsafe_allow_html=True)
-    principal = st.text_input(
-        "principal_hidden",
-        value=cfg["principal"],
-        placeholder="seuemail@gmail.com",
-        label_visibility="hidden",
-        key="email_principal",
-    )
-
-    # Senha
-    st.markdown('<div class="unit"><div class="inline-label">Senha:</div></div>', unsafe_allow_html=True)
-    app_password = st.text_input(
-        "senha_hidden",
-        value=cfg["app_password"],
-        placeholder="senha de app",
-        type="password",
-        label_visibility="hidden",
-        key="email_senha",
-    )
-
-    # Envio
-    st.markdown('<div class="unit"><div class="inline-label">Envio:</div></div>', unsafe_allow_html=True)
-    enviar_para = st.text_input(
-        "envio_hidden",
-        value=cfg["enviar_para"],
-        placeholder="destinatario@provedor.com",
-        label_visibility="hidden",
-        key="email_envio",
-    )
-
-    # Botão
-    st.markdown('<div class="unit unit-btn">', unsafe_allow_html=True)
-    salvar = st.button("TESTAR/SALVAR", key="btn_testar_salvar")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # Slot de mensagem alinhado
-    st.markdown(f'<div class="unit unit-msg">{msg_html}</div>', unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)  # fecha inline-row
-    st.markdown("</div>", unsafe_allow_html=True)  # fecha panel
-
-    if salvar:
-        if not principal or not app_password or not enviar_para:
-            st.session_state["email_msg"] = '<span style="color:#ffd166;">⚠️ Preencha Principal, Senha e Envio.</span>'
-        else:
-            try:
-                _save_email_config(principal, app_password, enviar_para)
-                _send_test_email(principal, app_password, enviar_para)
-                st.session_state["email_msg"] = '<span style="color:#8be28b;">✅ Configuração salva e e-mail de teste enviado.</span>'
-            except Exception as exc:  # noqa: BLE001
-                safe = _html.escape(str(exc))
-                st.session_state["email_msg"] = f'<span style="color:#ff7b7b;">❌ Falha ao salvar/testar e-mail: {safe}</span>'
-
-        # Força re-render imediato com a mensagem
-        st.rerun()
+# =============================================================================
+# ABA 3 — ENTRADA (placeholder seguro por enquanto)
+# =============================================================================
+with abas[2]:
+    st.markdown("### ENTRADA")
+    st.info("Painel de ENTRADA será ajustado após concluirmos o E-MAIL. (Placeholder seguro.)")
+    st.markdown("---")
 
 
-# =========================
-# App
-# =========================
-def main() -> None:
-    st.set_page_config(page_title="Autotrader — Painéis", layout="wide")
-    inject_css()
-    _ensure_email_table()
-
-    st.markdown('<div class="app-title"><h1>PAINÉIS DA AUTOMAÇÃO</h1></div>', unsafe_allow_html=True)
-    st.markdown('<div class="app-subtitle"></div>', unsafe_allow_html=True)
-
-    tabs = st.tabs(["E-MAIL", "MOEDAS", "ENTRADA", "SAÍDA"])
-    with tabs[0]:
-        render_email_panel()
-    with tabs[1]:
-        st.info("Painel MOEDAS — em breve.")
-    with tabs[2]:
-        st.info("Painel ENTRADA — em breve.")
-    with tabs[3]:
-        st.info("Painel SAÍDA — em breve.")
-
-
-if __name__ == "__main__":
-    main()
+# =============================================================================
+# ABA 4 — SAÍDA (placeholder seguro por enquanto)
+# =============================================================================
+with abas[3]:
+    st.markdown("### SAÍDA")
+    st.info("Painel de SAÍDA será ajustado após concluirmos o E-MAIL. (Placeholder seguro.)")
+    st.markdown("---")
