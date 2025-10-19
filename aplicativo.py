@@ -1,174 +1,307 @@
-# arquivo: aplicativo.py
-# Streamlit 1.33+ (usa st.rerun)
+# autotrader/aplicativo.py
+from __future__ import annotations
 
 import os
 import smtplib
-import ssl
-from email.mime.text import MIMEText
-from email.headerregistry import Address
+import email.message as em
+from typing import Optional
 
 import streamlit as st
 
-# =========================
-# Config da página
-# =========================
-st.set_page_config(page_title="Autotrader — Painéis", page_icon="📊", layout="wide")
 
-# =========================
-# CSS Global (tema + medidas)
-# =========================
-ORANGE = "#ff7b1b"
-DARK_BG = "#0d2433"
-DARK_CARD = "#102a3d"
-TEXT_LIGHT = "#e7eef4"
-
-st.markdown(
-    f"""
-    <style>
-    .stApp {{ background: {DARK_BG} !important; }}
-    section.main > div.block-container {{
-        padding-top: 2rem; padding-bottom: 2rem; color: {TEXT_LIGHT};
-    }}
-    .aut_title h1 {{ color:{ORANGE}!important; font-weight:800; letter-spacing:.5px; margin-bottom:1rem; }}
-    .aut_hr {{ height:1px; background:rgba(255,255,255,.08); margin:.6rem 0 1.4rem 0; }}
-
-    /* Abas */
-    div[data-baseweb="tab-list"] button[role="tab"] {{
-        color:{ORANGE}!important; border-radius:10px 10px 0 0!important;
-        background:transparent!important; border:1px solid rgba(255,255,255,.08)!important; border-bottom:none!important;
-    }}
-    div[data-baseweb="tab-list"] button[aria-selected="true"] {{
-        color:{DARK_BG}!important; background:{ORANGE}!important;
-    }}
-
-    /* Inputs dark */
-    .stTextInput > div > div > input,
-    .stTextArea textarea,
-    .stNumberInput > div > div > input {{
-        background:{DARK_CARD}!important; color:{TEXT_LIGHT}!important;
-        border-radius:10px!important; border:1px solid rgba(255,255,255,.08)!important;
-    }}
-
-    /* 250px de largura e gap 50px */
-    .aut .stTextInput > div > div > input {{ width:250px!important; }}
-    .aut .stButton > button {{
-        background:{ORANGE}!important; color:{DARK_BG}!important; border:none!important;
-        border-radius:10px!important; font-weight:700!important; width:250px!important; height:40px!important;
-    }}
-    .aut .email-row {{ display:flex; align-items:center; gap:50px; flex-wrap:wrap; margin:.5rem 0 .6rem 0; }}
-    .aut .field-label {{ color:{ORANGE}; font-weight:700; font-size:.9rem; margin-bottom:.25rem; }}
-
-    .aut .inline-feedback {{ min-width:320px; }}
-    .aut .success-box {{ background:#def6e5; color:#104c1f; padding:10px 14px; border-radius:8px; border:1px solid #b6e2bf; }}
-    .aut .error-box   {{ background:#fde3e3; color:#8a1a1a; padding:10px 14px; border-radius:8px; border:1px solid #f3b1b1; }}
-    </style>
-    """,
-    unsafe_allow_html=True,
+# -----------------------------
+# Configuração básica da página
+# -----------------------------
+st.set_page_config(
+    page_title="Autotrader — Painéis",
+    page_icon="📈",
+    layout="wide",
 )
 
-# =========================
-# Utilitários — e-mail
-# =========================
-def send_test_email(sender: str, app_password: str, to_addr: str) -> None:
-    msg = MIMEText("Teste de e-mail do painel Autotrader — OK ✅", "plain", "utf-8")
-    msg["Subject"] = "Autotrader — Teste de E-mail"
-    user, dom = sender.split("@", 1)
-    msg["From"] = str(Address(display_name="Autotrader", username=user, domain=dom))
-    msg["To"] = to_addr
+# -----------------------------
+# CSS GLOBAL (tema / layout)
+# -----------------------------
+ORANGE = "#ff7b1b"  # cor laranja padrão do projeto
 
-    context = ssl.create_default_context()
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-        server.login(sender, app_password)
-        server.send_message(msg)
+CSS = f"""
+<style>
+/* Reset leve para ficar consistente */
+:root {{
+  --orange: {ORANGE};
+}}
 
-def getenv(key: str, default: str = "") -> str:
-    return os.environ.get(key, default)
+html, body, [data-testid="stAppViewContainer"] {{
+  background-color: #0b2533;  /* fundo azul escuro */
+  color: #e7edf3;             /* texto claro */
+}}
 
-def set_runtime_env(key: str, value: str) -> None:
-    os.environ[key] = value  # mantém durante a sessão
+h1, h2, h3, h4, h5, h6 {{
+  color: var(--orange) !important;
+  font-weight: 800;
+  letter-spacing: .3px;
+}}
 
-# =========================
+/* Título grande da página */
+h1.page-title {{
+  font-size: 34px;
+  margin: 8px 0 18px 0;
+}}
+
+/* Linha fina separadora */
+.hr-thin {{
+  height: 1px;
+  background: rgba(255,255,255,.12);
+  margin: 6px 0 16px 0;
+  border-radius: 1px;
+}}
+
+/* Abas do Streamlit */
+.stTabs [data-baseweb="tab"] {{
+  background: transparent;
+  border: 1px solid rgba(255,255,255,.10);
+  color: #d2dbe2;
+  margin-right: 10px;
+  border-radius: 6px 6px 0 0;
+}}
+.stTabs [data-baseweb="tab"][aria-selected="true"] {{
+  color: #0b2533;
+  background: var(--orange);
+  border-color: var(--orange);
+}}
+.stTabs [data-baseweb="tab"]:hover {{
+  border-color: var(--orange);
+}}
+
+/* Inputs com 250px e espaçamento de 50px entre eles */
+.form-row {{
+  display: flex;
+  align-items: center;
+  gap: 50px; /* espaço entre campos */
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}}
+.form-col {{
+  width: 250px; /* largura fixa */
+}}
+.form-col .stTextInput>div>div>input,
+.form-col .stTextInput input {{
+  width: 250px !important;
+}}
+.form-col .stPassword>div>div>input,
+.form-col .stPassword input {{
+  width: 250px !important;
+}}
+
+/* Botão TESTAR/SALVAR com 250px */
+.action-col {{
+  width: 250px;
+}}
+.action-col .stButton>button {{
+  width: 250px;
+  background: var(--orange);
+  color: #0b2533;
+  border: none;
+  font-weight: 700;
+  letter-spacing: .5px;
+}}
+.action-col .stButton>button:hover {{
+  filter: brightness(0.95);
+}}
+
+/* Mensagem de status, alinhada à direita do botão */
+.status-col {{
+  flex: 1 1 auto; /* ocupa o resto da linha */
+  min-width: 260px;
+}}
+.status-ok {{
+  background: rgba(46, 204, 113, .12);
+  color: #a9f5c9;
+  border: 1px solid rgba(46, 204, 113, .35);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+}}
+.status-err {{
+  background: rgba(231, 76, 60, .12);
+  color: #ffb5ad;
+  border: 1px solid rgba(231, 76, 60, .35);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+}}
+
+/* Rótulos laranja ao lado dos inputs */
+.label {{
+  color: var(--orange);
+  font-weight: 700;
+  margin-bottom: 4px;
+}}
+
+/* Caixa ”seção” com recuo */
+.section {{
+  margin-top: 8px;
+  margin-bottom: 8px;
+}}
+</style>
+"""
+st.markdown(CSS, unsafe_allow_html=True)
+
+
+# -----------------------------
+# Utilitário: enviar email
+# -----------------------------
+def send_test_mail(
+    user: str,
+    app_password: str,
+    to_addr: str,
+    subject: str = "Teste de envio — Autotrader",
+    body: str = "Mensagem de teste enviada pelo painel Autotrader.",
+) -> Optional[str]:
+    """
+    Envia um e-mail de teste via Gmail (porta 587, TLS).
+    Retorna None em caso de sucesso; string de erro em falha.
+    """
+    try:
+        msg = em.Message()
+        msg["From"] = user
+        msg["To"] = to_addr
+        msg["Subject"] = subject
+        msg.set_payload(body)
+
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=20) as smtp:
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.login(user, app_password)
+            smtp.sendmail(user, [to_addr], msg.as_string())
+
+        return None
+    except Exception as exc:  # noqa: BLE001
+        return str(exc)
+
+
+# -----------------------------
+# Valores padrão a partir do ambiente (Render)
+# -----------------------------
+ENV_DEFAULTS = {
+    "MAIL_USER": os.getenv("MAIL_USER", ""),
+    "MAIL_APP_PASSWORD": os.getenv("MAIL_APP_PASSWORD", ""),
+    "MAIL_TO": os.getenv("MAIL_TO", ""),
+}
+
+# Carrega para session_state uma vez
+for key, default in (
+    ("mail_user", ENV_DEFAULTS["MAIL_USER"]),
+    ("mail_pass", ENV_DEFAULTS["MAIL_APP_PASSWORD"]),
+    ("mail_to", ENV_DEFAULTS["MAIL_TO"]),
+):
+    if key not in st.session_state:
+        st.session_state[key] = default
+
+
+# -----------------------------
 # Cabeçalho
-# =========================
-st.markdown('<div class="aut aut_title"><h1>PAINÉIS DA AUTOMAÇÃO</h1></div>', unsafe_allow_html=True)
-st.markdown('<div class="aut aut_hr"></div>', unsafe_allow_html=True)
+# -----------------------------
+st.markdown('<h1 class="page-title">PAINÉIS DA AUTOMAÇÃO</h1>', unsafe_allow_html=True)
+st.markdown('<div class="hr-thin"></div>', unsafe_allow_html=True)
 
-# =========================
+# -----------------------------
 # Abas
-# =========================
-tab_email, tab_moedas, tab_entrada, tab_saida = st.tabs(["E-MAIL", "MOEDAS", "ENTRADA", "SAÍDA"])
+# -----------------------------
+tabs = st.tabs(["E-MAIL", "MOEDAS", "ENTRADA", "SAÍDA"])
 
-# =============== E-MAIL ===============
-with tab_email:
-    st.markdown('<div class="aut">', unsafe_allow_html=True)
-    st.markdown(f"### <span style='color:{ORANGE};'>E-MAIL</span>", unsafe_allow_html=True)
-    st.markdown('<div class="aut_hr"></div>', unsafe_allow_html=True)
+# =============================
+# 1) ABA E-MAIL
+# =============================
+with tabs[0]:
+    st.markdown("## CORREIO ELETRÔNICO")
+    st.markdown('<div class="section"></div>', unsafe_allow_html=True)
 
-    default_user = getenv("MAIL_USER", "")
-    default_pass = getenv("MAIL_APP_PASSWORD", "")
-    default_to   = getenv("MAIL_TO", "")
-
-    if "email_feedback" not in st.session_state:
-        st.session_state.email_feedback = ("", "success")  # (mensagem, tipo)
-
-    st.markdown('<div class="email-row">', unsafe_allow_html=True)
-
+    # Linha 1 — Principal / Senha / Envio
     with st.container():
-        st.markdown('<div class="field-label">Principal:</div>', unsafe_allow_html=True)
-        user = st.text_input("Principal", value=default_user, key="email_user",
-                             label_visibility="collapsed", placeholder="seuemail@gmail.com")
+        st.markdown('<div class="form-row">', unsafe_allow_html=True)
 
-    with st.container():
-        st.markdown('<div class="field-label">Senha:</div>', unsafe_allow_html=True)
-        app_password = st.text_input("Senha", value=default_pass, key="email_pass",
-                                     type="password", label_visibility="collapsed",
-                                     placeholder="Senha de app (Gmail)")
+        # Principal
+        st.markdown('<div class="form-col">', unsafe_allow_html=True)
+        st.markdown('<div class="label">Principal:</div>', unsafe_allow_html=True)
+        mail_user = st.text_input(
+            label="Principal",
+            label_visibility="collapsed",
+            key="mail_user",
+            placeholder="seuemail@gmail.com",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    with st.container():
-        st.markdown('<div class="field-label">Envio:</div>', unsafe_allow_html=True)
-        to_addr = st.text_input("Envio", value=default_to, key="email_to",
-                                label_visibility="collapsed", placeholder="destinatario@dominio.com")
+        # Senha (App Password)
+        st.markdown('<div class="form-col">', unsafe_allow_html=True)
+        st.markdown('<div class="label">Senha:</div>', unsafe_allow_html=True)
+        mail_pass = st.text_input(
+            label="Senha",
+            label_visibility="collapsed",
+            key="mail_pass",
+            type="password",
+            placeholder="App Password do Gmail",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    with st.container():
-        st.markdown('<div class="field-label" style="visibility:hidden;">.</div>', unsafe_allow_html=True)
-        clicked = st.button("TESTAR/SALVAR", key="btn_test_save")
+        # Envio (destinatário)
+        st.markdown('<div class="form-col">', unsafe_allow_html=True)
+        st.markdown('<div class="label">Envio:</div>', unsafe_allow_html=True)
+        mail_to = st.text_input(
+            label="Envio",
+            label_visibility="collapsed",
+            key="mail_to",
+            placeholder="destinatario@exemplo.com",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    with st.container():
-        st.markdown('<div class="inline-feedback">', unsafe_allow_html=True)
-        msg, kind = st.session_state.email_feedback
-        if msg:
-            box = "success-box" if kind == "success" else "error-box"
-            st.markdown(f'<div class="{box}">{msg}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        # Botão + Status (mesma linha)
+        st.markdown('<div class="action-col">', unsafe_allow_html=True)
+        do_test = st.button("TESTAR/SALVAR", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)  # fecha .email-row
+        # Placeholder para status (fica à direita do botão)
+        status_ph = st.empty()
 
-    if clicked:
-        try:
-            if not user or "@" not in user:
-                raise ValueError("Informe um e-mail de remetente válido (Gmail).")
-            if not app_password:
-                raise ValueError("Informe a senha de app do Gmail (App Password).")
-            if not to_addr or "@" not in to_addr:
-                raise ValueError("Informe um e-mail de destino válido.")
-            # Envio
-            send_test_email(user, app_password, to_addr)
-            # Atualiza ambiente em runtime para a sessão
-            set_runtime_env("MAIL_USER", user)
-            set_runtime_env("MAIL_APP_PASSWORD", app_password)
-            set_runtime_env("MAIL_TO", to_addr)
-            st.session_state.email_feedback = ("Configuração salva e e-mail de teste enviado ✅", "success")
-            st.rerun()
-        except Exception as exc:
-            st.session_state.email_feedback = (f"Falha ao salvar/testar e-mail: {str(exc)}", "error")
-            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Ação do botão
+    if do_test:
+        # Validação simples
+        if not mail_user or not mail_pass or not mail_to:
+            status_ph.markdown(
+                '<div class="status-err">Preencha todos os campos para testar.</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            err = send_test_mail(mail_user, mail_pass, mail_to)
+            if err is None:
+                status_ph.markdown(
+                    '<div class="status-ok">Configuração salva e e-mail de teste enviado ✅</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                status_ph.markdown(
+                    f'<div class="status-err">Falha ao enviar e-mail: {err}</div>',
+                    unsafe_allow_html=True,
+                )
 
-# =============== PLACEHOLDERS ===============
-with tab_moedas:
-    st.info("Aqui virá o painel **MOEDAS** (aplicaremos o mesmo visual após sua aprovação do E-MAIL).")
-with tab_entrada:
-    st.info("Aqui virá o painel **ENTRADA**.")
-with tab_saida:
-    st.info("Aqui virá o painel **SAÍDA**.")
+# =============================
+# 2) ABA MOEDAS (placeholder)
+# =============================
+with tabs[1]:
+    st.markdown("## MOEDAS")
+    st.info("Vamos estilizar esta aba depois do e-mail, conforme seu modelo.")
+
+# =============================
+# 3) ABA ENTRADA (placeholder)
+# =============================
+with tabs[2]:
+    st.markdown("## ENTRADA")
+    st.info("Conteúdo será adicionado na próxima etapa.")
+
+# =============================
+# 4) ABA SAÍDA (placeholder)
+# =============================
+with tabs[3]:
+    st.markdown("## SAÍDA")
+    st.info("Conteúdo será adicionado na próxima etapa.")
