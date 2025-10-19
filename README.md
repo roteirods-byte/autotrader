@@ -16,3 +16,4 @@ streamlit run aplicativo.py
 - `lint`, `typecheck`, `tests` — já configurados em `.github/workflows/ci.yml`.
 
 Ative em **Settings → Branches → Branch protection** e selecione esses três checks.
+Atualização de teste.
