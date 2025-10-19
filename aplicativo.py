@@ -9,9 +9,9 @@ from typing import Optional
 import streamlit as st
 
 
-# -----------------------------
-# Página
-# -----------------------------
+# =============================
+# Config da página
+# =============================
 st.set_page_config(page_title="Autotrader — Painéis", page_icon="📈", layout="wide")
 
 ORANGE = "#ff7b1b"
@@ -34,24 +34,28 @@ h1, h2, h3, h4, h5, h6 {{
   font-weight: 800;
   letter-spacing: .3px;
 }}
-
 h1.page-title {{ font-size: 34px; margin: 8px 0 18px 0; }}
 .hr-thin {{ height:1px; background: rgba(255,255,255,.12); margin: 6px 0 16px; }}
 
-/* Abas */
-.stTabs [data-baseweb="tab"] {{
+/* Abas (“orelhas”) SEMPRE com nomes em laranja */
+.stTabs div[role="tablist"] > div[role="tab"] {{
   background: transparent;
   border: 1px solid rgba(255,255,255,.10);
-  color: #d2dbe2;
   margin-right: 10px;
   border-radius: 6px 6px 0 0;
 }}
-.stTabs [data-baseweb="tab"][aria-selected="true"] {{
-  color: var(--bg);
-  background: var(--orange);
+.stTabs div[role="tablist"] > div[role="tab"] p {{
+  color: var(--orange) !important;  /* nomes laranja permanentemente */
+  margin: 0;
+}}
+/* Aba ativa: realce leve para manter legibilidade do texto laranja */
+.stTabs div[role="tablist"] > div[role="tab"][aria-selected="true"] {{
+  background: rgba(255,123,27,.18);
   border-color: var(--orange);
 }}
-.stTabs [data-baseweb="tab"]:hover {{ border-color: var(--orange); }}
+.stTabs div[role="tablist"] > div[role="tab"]:hover {{
+  border-color: var(--orange);
+}}
 
 /* ======== CONTROLES: 250px + gap 50px ======== */
 div[data-testid="stTextInput"],
@@ -80,8 +84,13 @@ div[data-testid="stButton"] {{
   vertical-align: top;
   margin-right: 50px;
 }}
+div[data-testid="stButton"] > button:disabled {{
+  opacity: .65;
+  background: var(--orange);
+  color: var(--bg);
+}}
 
-/* Mensagens */
+/* Mensagens ao lado do botão */
 .status-ok {{
   background: rgba(46, 204, 113, .12);
   color: #a9f5c9;
@@ -104,9 +113,9 @@ div[data-testid="stButton"] {{
 st.markdown(CSS, unsafe_allow_html=True)
 
 
-# -----------------------------
+# =============================
 # Envio de e-mail (Gmail TLS)
-# -----------------------------
+# =============================
 def send_test_mail(
     user: str,
     app_password: str,
@@ -131,9 +140,9 @@ def send_test_mail(
         return str(exc)
 
 
-# -----------------------------
-# Defaults do ambiente (Render)
-# -----------------------------
+# =============================
+# Defaults (Render)
+# =============================
 defaults = {
     "mail_user": os.getenv("MAIL_USER", ""),
     "mail_pass": os.getenv("MAIL_APP_PASSWORD", ""),
@@ -146,19 +155,19 @@ st.session_state.setdefault("status_msg", "")
 st.session_state.setdefault("status_cls", "")
 
 
-# -----------------------------
+# =============================
 # Cabeçalho + Abas
-# -----------------------------
+# =============================
 st.markdown('<h1 class="page-title">PAINÉIS DA AUTOMAÇÃO</h1>', unsafe_allow_html=True)
 st.markdown('<div class="hr-thin"></div>', unsafe_allow_html=True)
 
-tabs = st.tabs(["E-MAIL", "MOEDAS", "ENTRADA", "SAÍDA"])
+tabs = st.tabs(["CORREIO ELETRÔNICO", "MOEDAS", "ENTRADA", "SAÍDA"])
 
 # =============================
 # 1) E-MAIL
 # =============================
 with tabs[0]:
-    st.markdown("## E-MAIL")
+    st.markdown("## CORREIO ELETRÔNICO")
 
     # Mesma LINHA: 3 campos + botão + status
     c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 2.2])
@@ -180,10 +189,9 @@ with tabs[0]:
         send_now = st.button("TESTAR/SALVAR")
 
     with c5:
-        # espaço para status na MESMA linha
         status_placeholder = st.empty()
 
-    # Mostrar status anterior (se existir) ao carregar
+    # Exibir status anterior (persistência leve)
     if st.session_state["status_msg"]:
         status_placeholder.markdown(
             f'<div class="{st.session_state["status_cls"]}">{st.session_state["status_msg"]}</div>',
