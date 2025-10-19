@@ -1,11 +1,27 @@
+# panels/email_panel.py — layout fixo (1306px) + painel com borda
 import os, re, streamlit as st
 from email.mime.text import MIMEText
 
+# ===== CSS do layout =====
+st.markdown("""
+<style>
+/* largura máxima da página */
+div[data-testid="stAppViewContainer"] .main .block-container{
+  max-width:1306px; padding-top:1.5rem;
+}
+/* inputs e botão com 250px */
+div[data-baseweb="input"] input{ width:250px; max-width:250px; }
+div.row-widget.stButton button{ width:250px; height:40px; font-weight:700; }
+/* espaço maior entre colunas */
+div[data-testid="stHorizontalBlock"]{ gap:50px !important; }
+</style>
+""", unsafe_allow_html=True)
+
 def _is_email(v:str) -> bool:
-    return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v or ""))
+    return bool(re.match(r"^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", v or ""))
 
 def _smtp_send(gmail_user:str, app_password:str, to_addr:str) -> tuple[bool,str]:
-    # tenta serviço; se não houver, usa SMTP direto
+    # tenta serviço do projeto; se não houver, usa SMTP direto
     try:
         from ops.email_svc import send_test_email
         ok, msg = send_test_email(gmail_user, app_password, to_addr)
@@ -18,53 +34,43 @@ def _smtp_send(gmail_user:str, app_password:str, to_addr:str) -> tuple[bool,str]
             msg["From"] = gmail_user
             msg["To"] = to_addr
             with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as s:
-                s.starttls(); s.login(gmail_user, app_password); s.sendmail(gmail_user, [to_addr], msg.as_string())
+                s.starttls(); s.login(gmail_user, app_password)
+                s.sendmail(gmail_user, [to_addr], msg.as_string())
             return True, "Enviado"
         except Exception as e:
             return False, f"{e}"
 
 def _load_defaults():
-    # fallback: ENV VARS se DB não existir
-    return {
-        "mail_user": os.getenv("MAIL_USER", ""),
-        "mail_to": os.getenv("MAIL_TO", ""),
-    }
+    # fallback inicial das ENV VARS (se DB ainda não tiver registro)
+    return {"mail_user": os.getenv("MAIL_USER",""), "mail_to": os.getenv("MAIL_TO","")}
 
 def render():
-    # CSS mínimo para largura dos inputs/botão
-    st.markdown("""
-    <style>
-      div[data-baseweb="input"] input {max-width:250px; width:250px;}
-      div.row-widget.stButton button {width:250px; height:40px;}
-      .hint {opacity:.7; font-size:0.85rem;}
-    </style>
-    """, unsafe_allow_html=True)
-
     st.markdown("### EMAIL")
 
-    defaults = _load_defaults()
-    c1, c2, c3, c4 = st.columns([1,1,1,1], vertical_alignment="center")
+    # painel com BORDA (oficial do Streamlit)
+    with st.container(border=True):
+        defaults = _load_defaults()
+        c1, c2, c3, c4 = st.columns([1,1,1,1], gap="large")
 
-    with c1:
-        mail_user = st.text_input("E-mail (remetente)", value=defaults["mail_user"], help="Seu Gmail que envia")
-    with c2:
-        app_pwd = st.text_input("App Password (Gmail)", type="password", help="Senha de App de 16 dígitos")
-    with c3:
-        mail_to = st.text_input("Enviar para", value=defaults["mail_to"], help="Destino dos alertas")
-    with c4:
-        acao = st.button("TESTAR/SALVAR")
+        with c1:
+            mail_user = st.text_input("E-mail (remetente)", value=defaults["mail_user"], help="Seu Gmail que envia")
+        with c2:
+            app_pwd = st.text_input("Senha do aplicativo (Gmail)", type="password", help="Senha de App de 16 dígitos")
+        with c3:
+            mail_to = st.text_input("Enviar para", value=defaults["mail_to"], help="Destino dos alertas")
+        with c4:
+            acao = st.button("TESTAR/SALVAR")
 
     if acao:
         if not _is_email(mail_user) or not _is_email(mail_to):
-            st.error("E-mails inválidos.")
-            return
+            st.error("E-mails inválidos."); return
         if len(app_pwd.strip()) < 16:
-            st.error("App Password inválida (16 caracteres).")
-            return
+            st.error("App Password inválida (16 caracteres)."); return
+
         ok, msg = _smtp_send(mail_user, app_pwd, mail_to)
         if ok:
             st.success("Configuração salva e e-mail de teste enviado ✅")
-            # grava simples no DB (se existir)
+            # salva no DB se existir (não quebra se não houver)
             try:
                 from ops.db import get_session
                 from ops.models import EmailSetting
