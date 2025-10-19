@@ -1,0 +1,54 @@
+-- Tabelas iniciais
+CREATE TABLE IF NOT EXISTS coins (
+  id SERIAL PRIMARY KEY,
+  symbol VARCHAR(20) UNIQUE NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  note VARCHAR(200) DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS entries (
+  id SERIAL PRIMARY KEY,
+  symbol VARCHAR(20) NOT NULL,
+  side VARCHAR(5) NOT NULL,
+  mode VARCHAR(12) NOT NULL,
+  entry_price DOUBLE PRECISION NOT NULL,
+  target_price DOUBLE PRECISION,
+  pnl_pct DOUBLE PRECISION DEFAULT 0,
+  status VARCHAR(12) DEFAULT 'ABERTA',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_date VARCHAR(10),
+  created_time VARCHAR(8)
+);
+
+CREATE TABLE IF NOT EXISTS exits (
+  id SERIAL PRIMARY KEY,
+  symbol VARCHAR(20) NOT NULL,
+  side VARCHAR(5) NOT NULL,
+  mode VARCHAR(12) NOT NULL,
+  entry_price DOUBLE PRECISION NOT NULL,
+  current_price DOUBLE PRECISION NOT NULL,
+  target_price DOUBLE PRECISION,
+  pnl_pct DOUBLE PRECISION DEFAULT 0,
+  status VARCHAR(12) DEFAULT 'FECHADA',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_date VARCHAR(10),
+  created_time VARCHAR(8)
+);
+
+CREATE TABLE IF NOT EXISTS email_settings (
+  id SERIAL PRIMARY KEY,
+  mail_from VARCHAR(120),
+  mail_to VARCHAR(120),
+  mail_user VARCHAR(120),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS email_log (
+  id SERIAL PRIMARY KEY,
+  subject VARCHAR(200),
+  body TEXT,
+  status VARCHAR(20),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);

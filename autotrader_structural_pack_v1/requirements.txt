@@ -1,0 +1,13 @@
+# Runtime
+streamlit==1.37.0
+pandas==2.2.2
+numpy==1.26.4
+SQLAlchemy==2.0.29
+psycopg2-binary==2.9.9
+ccxt==4.3.74
+python-dotenv==1.0.1
+pydantic==2.7.1
+tenacity==8.2.3
+structlog==24.1.0
+pytz==2024.1
+python-dateutil==2.9.0.post0
