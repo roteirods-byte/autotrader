@@ -1,5 +1,7 @@
 from __future__ import annotations
 import streamlit as st
+from autotrader.db_bootstrap import ensure_email_table
+from autotrader.panels.email_panel import render as render_email_panel
 import pandas as pd
 from db import init_db, fetch_table
 from ui.theme import apply_theme
