@@ -1,7 +1,9 @@
 import streamlit as st
 from ui import theme
 from panels.email_panel import render_email_panel
-from panels.moedas_panel import render_moedas_panel  # << usa o painel de moedas
+from panels.moedas_panel import render_moedas_panel
+from panels.entrada_panel import render_entrada_panel
+from panels.saida_panel import render_saida_panel
 
 def main():
     st.set_page_config(page_title="Autotrader", page_icon="📈", layout="centered")
@@ -9,7 +11,7 @@ def main():
 
     st.markdown("## PAINÉIS DA AUTOMAÇÃO")
     tab_operador, tab_email, tab_moedas, tab_entrada, tab_saida = st.tabs(
-        ["OPERADOR", "EMAIL", "MOEDAS ✓", "ENTRADA", "SAÍDA"]
+        ["OPERADOR", "EMAIL", "MOEDAS ✓", "ENTRADA ✓", "SAÍDA ✓"]
     )
 
     with tab_operador:
@@ -19,13 +21,13 @@ def main():
         render_email_panel()
 
     with tab_moedas:
-        render_moedas_panel()   # << NÃO deixa mensagem “em preparação”
+        render_moedas_panel()
 
     with tab_entrada:
-        st.info("Painel ENTRADA em preparação.")
+        render_entrada_panel()
 
     with tab_saida:
-        st.info("Painel SAÍDA em preparação.")
+        render_saida_panel()
 
 if __name__ == "__main__":
     main()
