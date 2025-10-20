@@ -1,7 +1,12 @@
-# panels/email_panel.py  — Streamlit puro (sem HTML/CSS extra)
-# Mantém sua lógica. Só organiza o layout com colunas nativas.
+# panels/email_panel.py — SUBSTITUA INTEIRO
+# Streamlit PURO + envio real de e-mail de TESTE (Gmail com senha de app)
 
 import streamlit as st
+import smtplib, ssl
+from email.message import EmailMessage
+
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = 587  # TLS
 
 def _flash_messages():
     ss = st.session_state
@@ -9,37 +14,50 @@ def _flash_messages():
     er = ss.get("email_error") or ss.get("flash_error")
     return ok, er
 
-def render_email_panel() -> None:
-    # Mensagens (se sua lógica setar no session_state)
-    ok, er = _flash_messages()
-    if ok:
-        st.success(ok, icon="✅")
-    if er:
-        st.error(er, icon="⚠️")
+def _send_test_email(sender: str, app_password: str, to_addr: str) -> None:
+    """Envia 1 e-mail de TESTE. Levanta exceção se falhar."""
+    msg = EmailMessage()
+    msg["Subject"] = "Autotrader — teste de e-mail"
+    msg["From"] = sender
+    msg["To"] = to_addr
+    msg.set_content("Teste de e-mail do Autotrader: sucesso! ✅")
 
-    # Formulário nativo: 3 campos + 1 coluna só para o botão
+    ctx = ssl.create_default_context()
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
+        smtp.ehlo()
+        smtp.starttls(context=ctx)
+        smtp.login(sender, app_password)          # senha de app do Gmail
+        smtp.send_message(msg)
+
+def render_email_panel() -> None:
+    # Mensagens anteriores (se houver)
+    ok, er = _flash_messages()
+    if ok: st.success(ok, icon="✅")
+    if er: st.error(er, icon="⚠️")
+
+    # Formulário: 3 campos + botão
     with st.form("EMAIL_FORM", clear_on_submit=False):
-        c1, c2, c3, c4 = st.columns([3, 3, 3, 2], gap="medium")
+        c1, c2, c3, c4 = st.columns([3,3,3,2], gap="medium")
 
         with c1:
-            st.text_input(
-                "Remetente",
+            sender = st.text_input(
+                "Remetente (Gmail)",
                 key="sender",
                 value=st.session_state.get("sender", st.session_state.get("sender_email", "")),
-                placeholder="voce@dominio.com",
+                placeholder="voce@gmail.com",
             )
 
         with c2:
-            st.text_input(
-                "Senha App",
+            app_password = st.text_input(
+                "Senha de app (Gmail)",
                 key="app_password",
                 value=st.session_state.get("app_password", st.session_state.get("email_app_password", "")),
                 type="password",
-                placeholder="senha de app",
+                placeholder="16 caracteres",
             )
 
         with c3:
-            st.text_input(
+            to_email = st.text_input(
                 "Enviar para",
                 key="to_email",
                 value=st.session_state.get("to_email", st.session_state.get("email_to", "")),
@@ -47,15 +65,33 @@ def render_email_panel() -> None:
             )
 
         with c4:
-            # Pequeno espaçamento para alinhar verticalmente o botão
-            st.write("")
-            st.write("")
-            submitted = st.form_submit_button("TESTAR/SALVAR")
+            st.write(""); st.write("")  # alinhamento
+            submitted = st.form_submit_button("ENVIAR TESTE")
 
-        # Sinal para sua lógica (se usar)
-        st.session_state["email_submit"] = submitted
+    # Sinal para outras partes do app (se precisar)
+    st.session_state["email_submit"] = submitted
+    st.session_state["sender_email"] = sender
+    st.session_state["email_app_password"] = app_password
+    st.session_state["email_to"] = to_email
 
-    # Espelhos de chaves (se sua lógica usa estes nomes)
-    st.session_state["sender_email"] = st.session_state.get("sender", "")
-    st.session_state["email_app_password"] = st.session_state.get("app_password", "")
-    st.session_state["email_to"] = st.session_state.get("to_email", "")
+    # Ao enviar: tenta mandar o e-mail de teste
+    if submitted:
+        try:
+            if not sender or not app_password or not to_email:
+                raise ValueError("Preencha os 3 campos.")
+
+            _send_test_email(sender, app_password, to_email)
+            st.session_state["email_success"] = f"E-mail de teste enviado para {to_email}."
+            st.session_state["email_error"] = None
+            st.success(st.session_state["email_success"], icon="✅")
+
+        except Exception as e:
+            msg = str(e)
+            # Dicas comuns do Gmail
+            if "Invalid credentials" in msg or "Authentication" in msg:
+                msg = "Falha de login no Gmail. Use **senha de app** (2FA ligado)."
+            elif "Timed out" in msg or "timeout" in msg.lower():
+                msg = "Não conectou ao servidor SMTP. Tente novamente."
+            st.session_state["email_error"] = msg
+            st.session_state["email_success"] = None
+            st.error(msg, icon="⚠️")
