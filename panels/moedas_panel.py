@@ -1,8 +1,7 @@
-# panels/moedas_panel.py  — Streamlit puro (tabela do operador)
+# panels/moedas_panel.py — Tabela simples p/ operador (Streamlit puro)
 import streamlit as st
 import pandas as pd
 
-# Lista fixa das 39 moedas
 COINS = [
     ("AAVE","Aave"), ("ADA","Cardano"), ("APT","Aptos"), ("ARB","Arbitrum"),
     ("ATOM","Cosmos"), ("AVAX","Avalanche"), ("AXS","Axie"), ("BCH","Bitcoin Cash"),
@@ -35,23 +34,32 @@ def _persist_back(df: pd.DataFrame):
 
 def render_moedas_panel():
     _init_state()
-
     st.subheader("MOEDAS")
-    termo = st.text_input("Buscar (símbolo ou nome)", "")
 
-    df = _df_from_state()
+    termo = st.text_input("Buscar (símbolo ou nome)", "")
+    base = _df_from_state()
     if termo:
         t = termo.strip().lower()
-        df = df[df["Símbolo"].str.lower().str.contains(t) | df["Nome"].str.lower().str.contains(t)]
+        base = base[ base["Símbolo"].str.lower().str.contains(t) | base["Nome"].str.lower().str.contains(t) ]
 
     edit = st.data_editor(
-        df,
+        base,
         hide_index=True,
-        use_container_width=True,
         num_rows="fixed",
+        use_container_width=True,
+        column_config={
+            "Ativo?": st.column_config.CheckboxColumn("Ativo?", default=True, help="Habilita/Desabilita a moeda"),
+            "Observação": st.column_config.TextColumn("Observação"),
+        },
     )
 
     _persist_back(edit)
 
     csv = edit.to_csv(index=False).encode("utf-8")
     st.download_button("Baixar CSV", data=csv, file_name="moedas.csv", mime="text/csv")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Resetar lista (padrão)"):
+            st.session_state.pop("moedas_db", None)
+            st.rerun()
