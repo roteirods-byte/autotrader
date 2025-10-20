@@ -1,16 +1,21 @@
+# aplicativo.py  — SUBSTITUA O ARQUIVO INTEIRO
 import streamlit as st
+from ui import theme
+from panels.email_panel import render_email_panel
 
 def main():
-    # 1º comando do app
+    # Configuração da página
     st.set_page_config(page_title="Autotrader", page_icon="📈", layout="centered")
+
+    # Injetar o visual padrão (cores, medidas, abas, etc.)
+    theme.inject_streamlit(st)
 
     st.markdown("## PAINÉIS DA AUTOMAÇÃO")
     tab_email, tab_moedas, tab_entrada, tab_saida = st.tabs(["EMAIL", "MOEDAS", "ENTRADA", "SAÍDA"])
 
     with tab_email:
-        # Import tardio e única chamada
-        from panels.email_panel import render as email_render
-        email_render()
+        # Painel EMAIL no novo padrão visual
+        render_email_panel()
 
     with tab_moedas:
         st.info("Painel MOEDAS em preparação.")
