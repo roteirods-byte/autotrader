@@ -1,4 +1,4 @@
-# panels/moedas_panel.py — Tabela simples p/ operador (Streamlit puro)
+# panels/moedas_panel.py  — SUBSTITUA/CRIE INTEIRO
 import streamlit as st
 import pandas as pd
 
@@ -22,11 +22,13 @@ def _init_state():
             for sym, name in COINS
         }
 
-def _df_from_state():
-    rows = [st.session_state.moedas_db[s] for s, _ in COINS]
-    return pd.DataFrame(rows, columns=["Símbolo","Nome","Ativo?","Observação"])
+def _df():
+    return pd.DataFrame(
+        [st.session_state.moedas_db[s] for s, _ in COINS],
+        columns=["Símbolo","Nome","Ativo?","Observação"]
+    )
 
-def _persist_back(df: pd.DataFrame):
+def _save(df: pd.DataFrame):
     for _, row in df.iterrows():
         sym = row["Símbolo"]
         st.session_state.moedas_db[sym]["Ativo?"] = bool(row["Ativo?"])
@@ -37,29 +39,27 @@ def render_moedas_panel():
     st.subheader("MOEDAS")
 
     termo = st.text_input("Buscar (símbolo ou nome)", "")
-    base = _df_from_state()
+    base = _df()
     if termo:
         t = termo.strip().lower()
         base = base[ base["Símbolo"].str.lower().str.contains(t) | base["Nome"].str.lower().str.contains(t) ]
 
     edit = st.data_editor(
-        base,
-        hide_index=True,
-        num_rows="fixed",
-        use_container_width=True,
+        base, hide_index=True, num_rows="fixed", use_container_width=True,
         column_config={
-            "Ativo?": st.column_config.CheckboxColumn("Ativo?", default=True, help="Habilita/Desabilita a moeda"),
+            "Ativo?": st.column_config.CheckboxColumn("Ativo?", default=True, help="Habilita/Desabilita"),
             "Observação": st.column_config.TextColumn("Observação"),
         },
     )
+    _save(edit)
 
-    _persist_back(edit)
+    st.download_button(
+        "Baixar CSV",
+        data=edit.to_csv(index=False).encode("utf-8"),
+        file_name="moedas.csv",
+        mime="text/csv"
+    )
 
-    csv = edit.to_csv(index=False).encode("utf-8")
-    st.download_button("Baixar CSV", data=csv, file_name="moedas.csv", mime="text/csv")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Resetar lista (padrão)"):
-            st.session_state.pop("moedas_db", None)
-            st.rerun()
+    if st.button("Resetar lista (padrão)"):
+        st.session_state.pop("moedas_db", None)
+        st.rerun()
