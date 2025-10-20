@@ -1,6 +1,6 @@
-# ENTRADA — duas colunas lado a lado (4H e 1H) e SINAL sem quebra de linha
+# SAÍDA — sem segmented_control (usa radio), igual ao modelo
 import streamlit as st
-import pandas as pd
+from datetime import datetime
 
 DEFAULT_COINS = [
     "AAVE","ADA","APT","ARB","ATOM","AVAX","AXS","BCH","BNB","BTC","DOGE","DOT",
@@ -13,95 +13,90 @@ def _coins_ativas():
     if not db: return DEFAULT_COINS
     return [s for s, v in db.items() if v.get("Ativo?", True)]
 
-def _fmt(x, nd=3):
-    try: return f"{float(x):.{nd}f}"
-    except: return str(x or "")
+def _pnl(side: str, entrada: float, atual: float) -> float:
+    try:
+        e = float(entrada); a = float(atual)
+        if e <= 0: return 0.0
+        pct = (a - e)/e * 100.0
+        return pct if (side or "").upper() == "LONG" else -pct
+    except:
+        return 0.0
 
-def _badge(sinal: str) -> str:
-    s = (sinal or "").upper()
-    if s == "SHORT":
-        return '<span style="white-space:nowrap;background:#EF4444;color:#fff;padding:2px 8px;border-radius:999px;font-weight:700;">SHORT</span>'
-    if s == "LONG":
-        return '<span style="white-space:nowrap;background:#22C55E;color:#0B0B0B;padding:2px 8px;border-radius:999px;font-weight:700;">LONG</span>'
-    # NÃO ENTRAR sem quebrar linha:
-    return '<span style="white-space:nowrap;opacity:.85">NÃO ENTRAR</span>'
+def render_saida_panel():
+    st.subheader("SAÍDA")
 
-def _baseline_rows():
-    return [{
-        "simbolo": sym, "sinal": "NAO_ENTRAR",
-        "preco": 0.0, "alvo": 0.0, "ganho": 0.0, "assert": 0.0,
-        "data": "", "hora": ""
-    } for sym in sorted(_coins_ativas())]
+    # --- Formulário de inclusão ---
+    c1,c2,c3,c4,c5,c6 = st.columns([1.2,1.2,1.5,1,0.8,1.2])
+    coins = _coins_ativas()
+    with c1:
+        par = st.selectbox("Par", coins, index=(coins.index("BTC") if "BTC" in coins else 0), key="saida_par")
+    with c2:
+        side = st.radio("Side", options=["LONG","SHORT"], horizontal=True, key="saida_side")
+    with c3:
+        modo = st.selectbox("Modo", ["Swing-friendly","Posicional"], key="saida_modo")
+    with c4:
+        entrada = st.number_input("Entrada", min_value=0.0, value=0.0, step=0.0001, format="%.6f", key="saida_entrada")
+    with c5:
+        alav = st.number_input("Alav", min_value=1, value=5, step=1, key="saida_alav")
+    with c6:
+        add = st.button("Adicionar Operação", use_container_width=True)
 
-def _overlay_with_signals(rows, key_signals: str):
-    sigs = { (s.get("simbolo") or "").upper(): s for s in st.session_state.get(key_signals, []) }
-    out = []
-    for r in rows:
-        s = sigs.get(r["simbolo"])
-        if s:
-            r = r | {
-                "sinal": s.get("sinal", r["sinal"]),
-                "preco": s.get("preco", r["preco"]),
-                "alvo":  s.get("alvo",  r["alvo"]),
-                "ganho": s.get("ganho", r["ganho"]),
-                "assert":s.get("assert",r["assert"]),
-                "data":  s.get("data",  r["data"]),
-                "hora":  s.get("hora",  r["hora"]),
-            }
-        out.append(r)
-    return out
+    if "ops_saida" not in st.session_state:
+        st.session_state.ops_saida = []
 
-def _section(titulo: str, key_signals: str):
-    st.markdown(f"### {titulo}")
-
-    base = _baseline_rows()
-    rows = _overlay_with_signals(base, key_signals)
-
-    # Cabeçalho (SINAL mais largo)
-    widths = [1.2, 1.5, 1, 1, 1, 1, 1.2, 1]
-    for col, h in zip(st.columns(widths), ["PARIDADE","SINAL","PREÇO","ALVO","GANHO%","ASSERT%","DATA","HORA"]):
-        col.markdown(f"**{h}**")
-
-    # Linhas
-    linhas_csv = []
-    for r in rows:
-        c1,c2,c3,c4,c5,c6,c7,c8 = st.columns(widths)
-        c1.write(r["simbolo"])
-        c2.markdown(_badge(r["sinal"]), unsafe_allow_html=True)
-        c3.write(_fmt(r["preco"],3))
-        c4.write(_fmt(r["alvo"],3))
-        try:
-            g = float(r["ganho"] or 0)
-            gtxt = f"{g:.2f}"
-            if g > 0:
-                c5.markdown(f"<span style='color:#22C55E;font-weight:600'>{gtxt}</span>", unsafe_allow_html=True)
-            elif g < 0:
-                c5.markdown(f"<span style='color:#EF4444;font-weight:600'>{gtxt}</span>", unsafe_allow_html=True)
-            else:
-                c5.write(gtxt)
-        except:
-            c5.write(_fmt(r["ganho"],2))
-        c6.write(_fmt(r["assert"],2))
-        c7.write(str(r["data"] or ""))
-        c8.write(str(r["hora"] or ""))
-
-        linhas_csv.append({
-            "PARIDADE": r["simbolo"], "SINAL": r["sinal"], "PRECO": r["preco"],
-            "ALVO": r["alvo"], "GANHO%": r["ganho"], "ASSERT%": r["assert"],
-            "DATA": r["data"], "HORA": r["hora"]
+    if add:
+        agora = datetime.now()
+        st.session_state.ops_saida.append({
+            "par": par, "side": side, "modo": modo,
+            "entrada": float(entrada or 0),
+            "alvo": 0.0,
+            "preco_atual": 0.0,
+            "pnl": 0.0,
+            "situacao": "-",
+            "data": agora.strftime("%Y-%m-%d"),
+            "hora": agora.strftime("%H:%M:%S"),
+            "alav": int(alav or 1),
         })
+        st.success("Operação adicionada.", icon="✅")
 
-    st.download_button(
-        f"Baixar CSV — {titulo}",
-        data=pd.DataFrame(linhas_csv).to_csv(index=False).encode("utf-8"),
-        file_name=f"sinais_{key_signals}.csv",
-        mime="text/csv"
-    )
+    st.write("Auto-refresh ligado.")
 
-def render_entrada_panel():
-    st.subheader("ENTRADA")
-    col4h, col1h = st.columns(2, gap="large")  # LADO A LADO
-    with col4h:
-        _section("ENTRADA 4H — SWING", "signals_4h")
-    with col1h:
-        _section("ENTRADA 1H — POSICIONAL", "signals_1h")
+    # --- Cabeçalho da lista ---
+    headers = ["PAR","SIDE","MODO","ENTRADA","ALVO","PREÇO ATUAL","PNL%","SITUAÇÃO","DATA","HORA","ALAV","EXCLUIR"]
+    widths  = [1,1,1.4,1,1,1.2,0.9,1.1,1,0.9,0.8,0.9]
+    for c, t in zip(st.columns(widths), headers):
+        c.markdown(f"**{t}**")
+
+    # --- Linhas ---
+    nova = []
+    for idx, op in enumerate(st.session_state.ops_saida):
+        c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12 = st.columns(widths)
+        c1.write(op["par"])
+        c2.markdown(
+            '<span style="white-space:nowrap;background:{c};color:{tc};padding:2px 8px;border-radius:999px;font-weight:700;">{t}</span>'.format(
+                c=("#22C55E" if op["side"]=="LONG" else "#EF4444"),
+                tc=("#0B0B0B" if op["side"]=="LONG" else "#fff"),
+                t=op["side"]),
+            unsafe_allow_html=True
+        )
+        c3.write(op["modo"])
+        c4.write(f"{op['entrada']:.6f}")
+        c5.write(f"{op.get('alvo',0.0):.6f}")
+        # preço atual editável + PNL
+        pa = c6.number_input(" ", key=f"pa_{idx}", label_visibility="collapsed",
+                             value=float(op.get("preco_atual",0.0)), step=0.0001, format="%.6f")
+        pnl = _pnl(op["side"], op["entrada"], pa)
+        op["preco_atual"] = float(pa)
+        op["pnl"] = pnl
+        if pnl > 0:
+            c7.markdown(f"<span style='color:#22C55E;font-weight:600'>{pnl:.2f}</span>", unsafe_allow_html=True)
+        elif pnl < 0:
+            c7.markdown(f"<span style='color:#EF4444;font-weight:600'>{pnl:.2f}</span>", unsafe_allow_html=True)
+        else:
+            c7.write(f"{pnl:.2f}")
+        c8.write(op.get("situacao","-"))
+        c9.write(op["data"]); c10.write(op["hora"]); c11.write(str(op["alav"]))
+        if c12.button("Excluir", key=f"del_{idx}", use_container_width=True):
+            continue
+        nova.append(op)
+    st.session_state.ops_saida = nova
