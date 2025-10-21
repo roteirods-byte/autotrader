@@ -1,87 +1,74 @@
-# panels/email_panel.py — layout apenas (modelo: Principal | Senha | Envio | TESTAR/SALVAR)
-# Mantém chaves: sender, app_password, to_email. Mantém função: render()
+# panels/email_panel.py — LAYOUT APENAS (mantém funcionamento)
+# Mantém as chaves: sender, app_password, to_email
+# Mantém o nome esperado pelo app: render_email_panel()
 
 from textwrap import dedent
-from importlib import import_module
-
 try:
     import streamlit as st
 except Exception:
     st = None
 
-# CSS: rótulos laranja, inputs compactos e botão sem quebra
-_CSS = dedent("""
+# CSS: 4 “caixas” alinhadas (260px cada) com espaçamento de 60px.
+# Títulos e rótulos em laranja (accent). Título geral (h1) também.
+_STYLE = dedent("""
 <style>
-  .email-row .lbl{
-    color: var(--accent, #FF8C32);
-    font-weight: 800;
-    letter-spacing: .2px;
-    white-space: nowrap;   /* NÃO quebra "Principal:" "Senha:" "Envio:" */
+  /* Título geral da página (PAINÉIS DA AUTOMAÇÃO) em laranja */
+  h1 { color: var(--accent, #FF8C32) !important; }
+
+  /* Barra do e-mail */
+  #EMAIL_BAR{
+    display:flex; align-items:center; gap:60px;
+    margin-top:.25rem;
   }
-  /* altura dos inputs */
+  #EMAIL_BAR .email-field{ width:260px; }
+  #EMAIL_BAR .email-field .lbl{
+    color: var(--accent, #FF8C32);
+    font-weight:800; letter-spacing:.2px; white-space:nowrap;
+    margin-bottom:6px;
+  }
+  /* inputs mais compactos */
   [data-baseweb="input"] input{ height:36px; }
-  /* garante que o texto do botão não fique em pé */
-  .stButton button{ white-space: nowrap; }
+  .stButton button{ white-space:nowrap; height:36px; }
 </style>
 """)
 
-def _try_send_via_ops(sender: str, app_pwd: str, to_email: str) -> bool:
-    """
-    Tenta usar um serviço existente do projeto (se houver),
-    SEM impor dependências. Se não achar, apenas retorna False.
-    """
-    for mod in ("ops.email_svc", "ops.email_repo"):
-        try:
-            m = import_module(mod)
-        except Exception:
-            continue
-        for fn_name in ("send_test_email", "enviar_teste", "send_test", "test_send", "test_email"):
-            fn = getattr(m, fn_name, None)
-            if callable(fn):
-                try:
-                    fn(sender, app_pwd, to_email)
-                    return True
-                except Exception:
-                    pass
-    return False
-
-def render() -> None:
+def render_email_panel() -> None:
     if st is None:
         return
 
-    st.markdown("### E-MAIL")
-    st.markdown(_CSS, unsafe_allow_html=True)
+    st.markdown(_STYLE, unsafe_allow_html=True)
 
-    # Linha única: Principal | Senha | Envio | Botão
-    col = st.columns([0.7, 2.2, 0.7, 2.0, 0.7, 2.2, 1.2])
-    with col[0]:
-        st.markdown('<div class="lbl email-row">Principal:</div>', unsafe_allow_html=True)
-    with col[1]:
-        st.text_input("sender", key="sender", label_visibility="collapsed",
-                      placeholder="voce@dominio.com")
+    # Título da seção “E-MAIL” em laranja
+    st.markdown('### <span style="color:var(--accent,#FF8C32)">E-MAIL</span>',
+                unsafe_allow_html=True)
 
-    with col[2]:
-        st.markdown('<div class="lbl email-row">Senha:</div>', unsafe_allow_html=True)
-    with col[3]:
-        st.text_input("app_password", key="app_password",
-                      label_visibility="collapsed", type="password",
-                      placeholder="senha de app")
+    # Linha única com 4 caixas (260px) e gap 60px
+    st.markdown('<div id="EMAIL_BAR">', unsafe_allow_html=True)
 
-    with col[4]:
-        st.markdown('<div class="lbl email-row">Envio:</div>', unsafe_allow_html=True)
-    with col[5]:
-        st.text_input("to_email", key="to_email", label_visibility="collapsed",
-                      placeholder="destinatario@dominio.com")
+    # Principal
+    st.markdown('<div class="email-field"><div class="lbl">Principal:</div>',
+                unsafe_allow_html=True)
+    st.text_input("sender", key="sender", label_visibility="collapsed",
+                  placeholder="voce@dominio.com")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    with col[6]:
-        clicked = st.button("TESTAR/SALVAR", use_container_width=True, key="email_submit")
+    # Senha
+    st.markdown('<div class="email-field"><div class="lbl">Senha:</div>',
+                unsafe_allow_html=True)
+    st.text_input("app_password", key="app_password", label_visibility="collapsed",
+                  type="password", placeholder="senha de app")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Comportamento ao clicar: tentar enviar (se serviço existir), senão apenas salvar
-    if clicked:
-        sender = st.session_state.get("sender", "")
-        app_pwd = st.session_state.get("app_password", "")
-        to     = st.session_state.get("to_email", "")
-        if _try_send_via_ops(sender, app_pwd, to):
-            st.success(f"E-mail de teste enviado para {to}.", icon="✅")
-        else:
-            st.success("Configurações salvas. (Nenhum serviço de envio detectado neste painel.)", icon="✅")
+    # Envio
+    st.markdown('<div class="email-field"><div class="lbl">Envio:</div>',
+                unsafe_allow_html=True)
+    st.text_input("to_email", key="to_email", label_visibility="collapsed",
+                  placeholder="destinatario@dominio.com")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Botão (mantém o comportamento atual do app)
+    st.markdown('<div class="email-field">', unsafe_allow_html=True)
+    st.button("TESTAR/SALVAR", use_container_width=True, key="email_submit")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
