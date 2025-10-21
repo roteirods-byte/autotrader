@@ -1,74 +1,62 @@
-# panels/email_panel.py — LAYOUT APENAS (mantém funcionamento)
-# Mantém as chaves: sender, app_password, to_email
-# Mantém o nome esperado pelo app: render_email_panel()
 
-from textwrap import dedent
-try:
-    import streamlit as st
-except Exception:
-    st = None
+# panels/email_panel.py  — Streamlit puro (sem HTML/CSS extra)
+# Mantém sua lógica. Só organiza o layout com colunas nativas.
 
-# CSS: 4 “caixas” alinhadas (260px cada) com espaçamento de 60px.
-# Títulos e rótulos em laranja (accent). Título geral (h1) também.
-_STYLE = dedent("""
-<style>
-  /* Título geral da página (PAINÉIS DA AUTOMAÇÃO) em laranja */
-  h1 { color: var(--accent, #FF8C32) !important; }
+import streamlit as st
 
-  /* Barra do e-mail */
-  #EMAIL_BAR{
-    display:flex; align-items:center; gap:60px;
-    margin-top:.25rem;
-  }
-  #EMAIL_BAR .email-field{ width:260px; }
-  #EMAIL_BAR .email-field .lbl{
-    color: var(--accent, #FF8C32);
-    font-weight:800; letter-spacing:.2px; white-space:nowrap;
-    margin-bottom:6px;
-  }
-  /* inputs mais compactos */
-  [data-baseweb="input"] input{ height:36px; }
-  .stButton button{ white-space:nowrap; height:36px; }
-</style>
-""")
+def _flash_messages():
+    ss = st.session_state
+    ok = ss.get("email_success") or ss.get("flash_success")
+    er = ss.get("email_error") or ss.get("flash_error")
+    return ok, er
 
 def render_email_panel() -> None:
-    if st is None:
-        return
+    # Mensagens (se sua lógica setar no session_state)
+    ok, er = _flash_messages()
+    if ok:
+        st.success(ok, icon="✅")
+    if er:
+        st.error(er, icon="⚠️")
 
-    st.markdown(_STYLE, unsafe_allow_html=True)
+    # Formulário nativo: 3 campos + 1 coluna só para o botão
+    with st.form("EMAIL_FORM", clear_on_submit=False):
+        c1, c2, c3, c4 = st.columns([3, 3, 3, 2], gap="medium")
 
-    # Título da seção “E-MAIL” em laranja
-    st.markdown('### <span style="color:var(--accent,#FF8C32)">E-MAIL</span>',
-                unsafe_allow_html=True)
+        with c1:
+            st.text_input(
+                "Remetente",
+                key="sender",
+                value=st.session_state.get("sender", st.session_state.get("sender_email", "")),
+                placeholder="voce@dominio.com",
+            )
 
-    # Linha única com 4 caixas (260px) e gap 60px
-    st.markdown('<div id="EMAIL_BAR">', unsafe_allow_html=True)
+        with c2:
+            st.text_input(
+                "Senha App",
+                key="app_password",
+                value=st.session_state.get("app_password", st.session_state.get("email_app_password", "")),
+                type="password",
+                placeholder="senha de app",
+            )
 
-    # Principal
-    st.markdown('<div class="email-field"><div class="lbl">Principal:</div>',
-                unsafe_allow_html=True)
-    st.text_input("sender", key="sender", label_visibility="collapsed",
-                  placeholder="voce@dominio.com")
-    st.markdown('</div>', unsafe_allow_html=True)
+        with c3:
+            st.text_input(
+                "Enviar para",
+                key="to_email",
+                value=st.session_state.get("to_email", st.session_state.get("email_to", "")),
+                placeholder="destinatario@dominio.com",
+            )
 
-    # Senha
-    st.markdown('<div class="email-field"><div class="lbl">Senha:</div>',
-                unsafe_allow_html=True)
-    st.text_input("app_password", key="app_password", label_visibility="collapsed",
-                  type="password", placeholder="senha de app")
-    st.markdown('</div>', unsafe_allow_html=True)
+        with c4:
+            # Pequeno espaçamento para alinhar verticalmente o botão
+            st.write("")
+            st.write("")
+            submitted = st.form_submit_button("TESTAR/SALVAR")
 
-    # Envio
-    st.markdown('<div class="email-field"><div class="lbl">Envio:</div>',
-                unsafe_allow_html=True)
-    st.text_input("to_email", key="to_email", label_visibility="collapsed",
-                  placeholder="destinatario@dominio.com")
-    st.markdown('</div>', unsafe_allow_html=True)
+        # Sinal para sua lógica (se usar)
+        st.session_state["email_submit"] = submitted
 
-    # Botão (mantém o comportamento atual do app)
-    st.markdown('<div class="email-field">', unsafe_allow_html=True)
-    st.button("TESTAR/SALVAR", use_container_width=True, key="email_submit")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Espelhos de chaves (se sua lógica usa estes nomes)
+    st.session_state["sender_email"] = st.session_state.get("sender", "")
+    st.session_state["email_app_password"] = st.session_state.get("app_password", "")
+    st.session_state["email_to"] = st.session_state.get("to_email", "")
