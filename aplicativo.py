@@ -1,6 +1,6 @@
 import streamlit as st
 from ui import theme
-from panels.email_panel import render_email_panel
+from panels.email_panel import render as render_email_panel
 from panels.moedas_panel import render_moedas_panel
 from panels.entrada_panel import render_entrada_panel
 from panels.saida_panel import render_saida_panel
