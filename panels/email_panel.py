@@ -1,4 +1,3 @@
-
 # panels/email_panel.py  — Streamlit puro (sem HTML/CSS extra)
 # Mantém sua lógica. Só organiza o layout com colunas nativas.
 
