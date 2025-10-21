@@ -1,78 +1,62 @@
-# LAYOUT APENAS – não altera a lógica de envio
-# Mantém as chaves: sender, app_password, to_email
-# Exporta: render_email_panel() e render()  (compatível com qualquer import)
+# panels/email_panel.py — layout do painel EMAIL (visual apenas)
+# Mantém as mesmas chaves de estado: sender, app_password, to_email.
+# Não altera nenhuma lógica de envio/salvamento.
 
 from textwrap import dedent
+
 try:
     import streamlit as st
 except Exception:
     st = None
 
-_STYLE = dedent("""
+# CSS mínimo para cor do rótulo e compactação
+_LOCAL_CSS = dedent("""
 <style>
-  /* Título geral da página */
-  h1 { color: var(--accent, #FF8C32) !important; }
-
-  /* Título da seção E-MAIL */
-  .email-title { color: var(--accent, #FF8C32); font-weight: 800; }
-
-  /* Linha com 4 caixas */
-  #EMAIL_BAR{
-    display:flex; align-items:center; gap:60px;
-    margin-top:.25rem;
-  }
-  #EMAIL_BAR .email-field{ width:260px; }
-  #EMAIL_BAR .email-field .lbl{
+  #EMAIL_ROW .label{
     color: var(--accent, #FF8C32);
-    font-weight:800; letter-spacing:.2px; white-space:nowrap;
-    margin-bottom:6px;
+    font-weight: 800;
+    letter-spacing: .2px;
+    white-space: nowrap;
   }
-
-  /* inputs e botão */
-  [data-baseweb="input"] input{ height:36px; }
-  .stButton button{ white-space:nowrap; height:36px; }
+  /* inputs um pouco mais compactos */
+  [data-baseweb="input"] input { height: 36px; }
 </style>
 """)
 
-def _render_core():
+def render_email_panel() -> None:
     if st is None:
         return
 
-    st.markdown(_STYLE, unsafe_allow_html=True)
+    st.markdown("### E-MAIL")
+    st.markdown(_LOCAL_CSS, unsafe_allow_html=True)
 
-    # Título da seção
-    st.markdown('<div class="email-title">### E-MAIL</div>', unsafe_allow_html=True)
+    # Uma única linha: Principal | Senha | Envio | Botão
+    with st.form("EMAIL_FORM", clear_on_submit=False):
+        st.markdown('<div id="EMAIL_ROW">', unsafe_allow_html=True)
 
-    # Quatro caixas de 260px com gap 60px
-    st.markdown('<div id="EMAIL_BAR">', unsafe_allow_html=True)
+        # larguras pensadas para 1366x768 (evita quebra)
+        c1,c2,c3,c4,c5,c6,c7 = st.columns([0.7, 2.1, 0.7, 1.9, 0.7, 2.1, 1.0])
 
-    # Principal
-    st.markdown('<div class="email-field"><div class="lbl">Principal:</div>', unsafe_allow_html=True)
-    st.text_input("sender", key="sender", label_visibility="collapsed",
-                  placeholder="voce@dominio.com")
-    st.markdown('</div>', unsafe_allow_html=True)
+        with c1:
+            st.markdown('<div class="label">Principal:</div>', unsafe_allow_html=True)
+        with c2:
+            st.text_input("Remetente", key="sender", label_visibility="collapsed",
+                          placeholder="voce@dominio.com")
 
-    # Senha
-    st.markdown('<div class="email-field"><div class="lbl">Senha:</div>', unsafe_allow_html=True)
-    st.text_input("app_password", key="app_password", label_visibility="collapsed",
-                  type="password", placeholder="senha de app")
-    st.markdown('</div>', unsafe_allow_html=True)
+        with c3:
+            st.markdown('<div class="label">Senha:</div>', unsafe_allow_html=True)
+        with c4:
+            st.text_input("Senha do app (Gmail)", key="app_password",
+                          label_visibility="collapsed", type="password",
+                          placeholder="senha de app")
 
-    # Envio
-    st.markdown('<div class="email-field"><div class="lbl">Envio:</div>', unsafe_allow_html=True)
-    st.text_input("to_email", key="to_email", label_visibility="collapsed",
-                  placeholder="destinatario@dominio.com")
-    st.markdown('</div>', unsafe_allow_html=True)
+        with c5:
+            st.markdown('<div class="label">Envio:</div>', unsafe_allow_html=True)
+        with c6:
+            st.text_input("Enviar para", key="to_email", label_visibility="collapsed",
+                          placeholder="destinatario@dominio.com")
 
-    # Botão (mesma key de sempre)
-    st.markdown('<div class="email-field">', unsafe_allow_html=True)
-    st.button("TESTAR/SALVAR", use_container_width=True, key="email_submit")
-    st.markdown('</div>', unsafe_allow_html=True)
+        with c7:
+            st.form_submit_button("TESTAR/SALVAR", use_container_width=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
-def render_email_panel():
-    _render_core()
-
-def render():
-    _render_core()
+        st.markdown('</div>', unsafe_allow_html=True)
