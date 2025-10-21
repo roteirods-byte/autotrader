@@ -1,5 +1,7 @@
-# SUBSTITUA O ARQUIVO INTEIRO
-# panels/email_panel.py — layout + estilo (não altera a lógica de envio)
+# panels/email_panel.py — layout do painel de E-mail (apenas UI)
+# Mantém as chaves do estado: sender, app_password, to_email
+# Mantém a tentativa de envio via ops.email_svc / ops.email_repo
+
 from textwrap import dedent
 from importlib import import_module
 
@@ -9,72 +11,43 @@ except Exception:
     st = None
 
 
-# =========================
-# CSS (visual)
-# =========================
-_CSS = dedent("""
+# CSS local — escopado ao painel, não afeta outras telas
+_PANEL_CSS = dedent("""
 <style>
-  /* laranja padrão */
-  :root{
-    --accent:#FF8C32;
-  }
-
-  /* deixa o título geral em laranja quando estiver nesta aba */
-  h1, .app-title { color: var(--accent) !important; }
-
-  /* bloco do formulário de e-mail */
-  .email-form{
-    display:flex;
-    align-items:flex-end;
-    gap: 60px; /* “espaço entre as caixas” */
-    flex-wrap:wrap;
-  }
-
-  /* rótulos em laranja */
-  .email-form .lbl{
-    color: var(--accent);
-    font-weight: 800;
+  /* Escopo do painel */
+  #EMAIL_PANEL .label {
+    color: var(--accent, #FF8C32);
+    font-weight: 700;
     letter-spacing: .2px;
     margin-bottom: 6px;
-    white-space: nowrap;
+    display: inline-block;
   }
-
-  /* largura fixa dos inputs (350px) */
-  .email-form [data-testid="stTextInput"], 
-  .email-form [data-baseweb="input"]{
-    width: 350px !important;
-    max-width: 350px !important;
+  #EMAIL_PANEL h3 {
+    color: var(--accent, #FF8C32);
+    margin-bottom: 14px;
   }
-
-  /* altura confortável */
-  .email-form [data-baseweb="input"] input{
-    height: 36px !important;
+  #EMAIL_PANEL [data-baseweb="input"] input{
+    height: 36px;          /* inputs mais compactos */
   }
-
-  /* espaço para o "olho" do campo de senha sem encolher */
-  .email-form .password [data-baseweb="input"] input{
-    padding-right: 38px !important;
+  /* Botão sempre laranja (apenas aqui) */
+  #EMAIL_PANEL .stButton > button{
+    background: var(--accent, #FF8C32);
+    color: #0B0B0B;
+    border: 1px solid var(--accent, #FF8C32);
+    font-weight: 700;
   }
-
-  /* botão sempre laranja */
-  .email-form .stButton > button{
-    background: var(--accent) !important;
-    border: 1px solid var(--accent) !important;
-    color: #0B0B0B !important;
-    font-weight: 800 !important;
-    height: 38px !important;
-    padding: 0 16px !important;
-    white-space: nowrap;
-    border-radius: 10px;
+  #EMAIL_PANEL .stButton > button:hover{
+    filter: brightness(0.95);
   }
 </style>
 """)
 
 
-# =========================
-# tentativa de envio (se serviço existir no projeto)
-# =========================
 def _try_send_via_ops(sender: str, app_pwd: str, to_email: str) -> bool:
+    """
+    Tenta enviar usando serviços já existentes do projeto, se houver.
+    Não cria dependência rígida: se não encontrar, apenas retorna False.
+    """
     for mod in ("ops.email_svc", "ops.email_repo"):
         try:
             m = import_module(mod)
@@ -91,51 +64,48 @@ def _try_send_via_ops(sender: str, app_pwd: str, to_email: str) -> bool:
     return False
 
 
-# =========================
-# render (UI apenas)
-# =========================
 def render() -> None:
     if st is None:
         return
 
-    st.markdown(_CSS, unsafe_allow_html=True)
+    # Escopo visual do painel
+    st.markdown('<div id="EMAIL_PANEL">', unsafe_allow_html=True)
+    st.markdown(_PANEL_CSS, unsafe_allow_html=True)
 
-    st.markdown("### E-MAIL")  # título da seção (herda laranja via CSS)
-    st.markdown("")
+    # Título do painel (em laranja pelo CSS acima)
+    st.markdown("### E-MAIL")
 
     # Linha única: Principal | Senha | Envio | Botão
-    # (cada “caixa” = 350px; espaçamento = 60px via CSS)
-    st.markdown('<div class="email-form">', unsafe_allow_html=True)
+    # (larguras proporcionais estáveis; visualmente iguais)
+    c_princ, c_senha, c_envio, c_btn = st.columns([1.1, 1.0, 1.1, 0.8], gap="large")
 
-    # Principal
-    with st.container():
-        st.markdown('<div class="lbl">Principal:</div>', unsafe_allow_html=True)
-        st.text_input("Principal", key="sender", label_visibility="collapsed",
-                      placeholder="voce@dominio.com")
+    with c_princ:
+        st.markdown('<span class="label">Principal:</span>', unsafe_allow_html=True)
+        st.text_input(
+            "sender", key="sender", label_visibility="collapsed",
+            placeholder="voce@dominio.com"
+        )
 
-    # Senha (com “olho” dentro e sem encolher)
-    with st.container():
-        st.markdown('<div class="lbl">Senha:</div>', unsafe_allow_html=True)
-        with st.container():
-            st.markdown('<div class="password">', unsafe_allow_html=True)
-            st.text_input("Senha", key="app_password", label_visibility="collapsed",
-                          type="password", placeholder="senha de app")
-            st.markdown('</div>', unsafe_allow_html=True)
+    with c_senha:
+        st.markdown('<span class="label">Senha:</span>', unsafe_allow_html=True)
+        # Observação: o "olho" é do Streamlit e fica à direita por padrão (mais estável)
+        st.text_input(
+            "app_password", key="app_password", label_visibility="collapsed",
+            type="password", placeholder="senha de app"
+        )
 
-    # Envio
-    with st.container():
-        st.markdown('<div class="lbl">Envio:</div>', unsafe_allow_html=True)
-        st.text_input("Envio", key="to_email", label_visibility="collapsed",
-                      placeholder="destinatario@dominio.com")
+    with c_envio:
+        st.markdown('<span class="label">Envio:</span>', unsafe_allow_html=True)
+        st.text_input(
+            "to_email", key="to_email", label_visibility="collapsed",
+            placeholder="destinatario@dominio.com"
+        )
 
-    # Botão
-    with st.container():
-        st.markdown('<div class="lbl" style="opacity:.0">.</div>', unsafe_allow_html=True)  # apenas para alinhar
-        clicked = st.button("TESTAR/SALVAR", key="email_submit")
+    with c_btn:
+        st.markdown("&nbsp;", unsafe_allow_html=True)  # alinha o botão com os inputs
+        clicked = st.button("TESTAR/SALVAR", use_container_width=True, key="email_submit")
 
-    st.markdown('</div>', unsafe_allow_html=True)  # fecha .email-form
-
-    # Ação do botão (mesma de antes)
+    # Ao clicar: tenta enviar; se não houver serviço, confirma salvamento
     if clicked:
         sender = st.session_state.get("sender", "")
         app_pwd = st.session_state.get("app_password", "")
@@ -144,3 +114,5 @@ def render() -> None:
             st.success(f"E-mail de teste enviado para {to}.", icon="✅")
         else:
             st.success("Configurações salvas. (Nenhum serviço de envio detectado neste painel.)", icon="✅")
+
+    st.markdown("</div>", unsafe_allow_html=True)
