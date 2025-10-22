@@ -1,19 +1,24 @@
-# BLOCO 90 - INICIO (aplicativo_paineis.py - app só dos painéis)
+# BLOCO 90 - INICIO (aplicativo_paineis.py - navegação lateral)
 import streamlit as st
 from ui_panels import email, moedas, entrada, saida
 
 st.set_page_config(page_title="Painéis da Automação", layout="wide")
 
-# Abas visíveis (clique nelas para trocar de painel)
-tabs = st.tabs(["OPERADOR","EMAIL","MOEDAS","ENTRADA","SAÍDA"])
-with tabs[0]:
-    st.info("Painel OPERADOR em preparação.")
-with tabs[1]:
+# Navegação simples e estável (sem abas)
+opcao = st.sidebar.radio(
+    "PAINÉIS",
+    ["EMAIL", "MOEDAS", "ENTRADA", "SAÍDA", "OPERADOR"],
+    index=0
+)
+
+if opcao == "EMAIL":
     email.render()
-with tabs[2]:
+elif opcao == "MOEDAS":
     moedas.render()
-with tabs[3]:
+elif opcao == "ENTRADA":
     entrada.render()
-with tabs[4]:
+elif opcao == "SAÍDA":
     saida.render()
+else:
+    st.info("Painel OPERADOR em preparação.")
 # BLOCO 90 - FIM
