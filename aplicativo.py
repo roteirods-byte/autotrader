@@ -1,33 +1,21 @@
+# BLOCO 90 - INICIO (aplicativo.py - roteamento para painéis)
 import streamlit as st
-from ui import theme
-from panels.email_panel import render as render_email_panel
-from panels.moedas_panel import render_moedas_panel
-from panels.entrada_panel import render_entrada_panel
-from panels.saida_panel import render_saida_panel
+from ui_panels import email, moedas, entrada, saida
 
-def main():
-    st.set_page_config(page_title="Autotrader", page_icon="📈", layout="centered")
-    theme.inject_streamlit(st)
+st.set_page_config(page_title="Painéis da Automação", layout="wide")
 
-    st.markdown("## PAINÉIS DA AUTOMAÇÃO")
-    tab_operador, tab_email, tab_moedas, tab_entrada, tab_saida = st.tabs(
-        ["OPERADOR", "EMAIL", "MOEDAS ✓", "ENTRADA ✓", "SAÍDA ✓"]
-    )
+tab_oper, tab_email, tab_moedas, tab_entrada, tab_saida = st.tabs(
+    ["OPERADOR","EMAIL","MOEDAS","ENTRADA","SAÍDA"]
+)
 
-    with tab_operador:
-        st.info("Painel OPERADOR em preparação.")
-
-    with tab_email:
-        render_email_panel()
-
-    with tab_moedas:
-        render_moedas_panel()
-
-    with tab_entrada:
-        render_entrada_panel()
-
-    with tab_saida:
-        render_saida_panel()
-
-if __name__ == "__main__":
-    main()
+with tab_oper:
+    st.info("Painel OPERADOR em preparação.")
+with tab_email:
+    email.render()
+with tab_moedas:
+    moedas.render()
+with tab_entrada:
+    entrada.render()
+with tab_saida:
+    saida.render()
+# BLOCO 90 - FIM
