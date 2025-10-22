@@ -4,18 +4,16 @@ from ui_panels import email, moedas, entrada, saida
 
 st.set_page_config(page_title="Painéis da Automação", layout="wide")
 
-tab_oper, tab_email, tab_moedas, tab_entrada, tab_saida = st.tabs(
-    ["OPERADOR","EMAIL","MOEDAS","ENTRADA","SAÍDA"]
-)
-
-with tab_oper:
+# Abas visíveis (clique nelas para trocar de painel)
+tabs = st.tabs(["OPERADOR","EMAIL","MOEDAS","ENTRADA","SAÍDA"])
+with tabs[0]:
     st.info("Painel OPERADOR em preparação.")
-with tab_email:
+with tabs[1]:
     email.render()
-with tab_moedas:
+with tabs[2]:
     moedas.render()
-with tab_entrada:
+with tabs[3]:
     entrada.render()
-with tab_saida:
+with tabs[4]:
     saida.render()
 # BLOCO 90 - FIM
