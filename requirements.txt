@@ -1,5 +1,8 @@
-streamlit
-pandas
+dash
+dash-bootstrap-components
+gunicorn
 sqlalchemy
 pydantic
 email-validator
+pandas
+streamlit
