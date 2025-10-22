@@ -1,0 +1,6 @@
+streamlit
+sqlalchemy
+pydantic
+email-validator
+pandas
+pytz

@@ -1,0 +1,36 @@
+/* BLOCO 02 - INICIO (theme.css) */
+:root{
+  --bg:#0D1B24;
+  --title:#FF8C00;
+  --border:#FFFFFF;
+  --muted:#1B2A34;
+  --text:#E8EEF2;
+  --green:#00C853;
+  --red:#FF5252;
+}
+
+html, body, [data-testid="stAppViewContainer"]{ background: var(--bg) !important; }
+[data-testid="stAppViewContainer"] .block-container{ max-width: 1320px; margin: 0 auto; padding-top: .5rem; }
+
+.title{ color: var(--title); font-weight: 800; font-size: 2.2rem; margin: 0 0 .4rem 0; }
+.section{ color: var(--title); font-weight: 800; font-size: 1.5rem; border-bottom: 2px solid var(--title); padding-bottom: .25rem; margin: .2rem 0 .8rem 0; }
+
+/* ---- Cartão EMAIL em pixel fixo ---- */
+.email-card{
+  width: 1306px; min-height: 160px; margin: 0 auto 12px auto;
+  background: var(--muted); border:1px solid var(--border); border-radius:10px; padding: 12px 16px;
+}
+.email-row{ display:flex; gap:40px; align-items:flex-end; }
+.email-col{ flex: 0 0 260px; max-width:260px; }
+
+/* Força largura dos widgets Streamlit a 260px */
+.email-col [data-testid="stTextInput"], .email-col [data-testid="stTextInput"] input,
+.email-col [data-testid="stPassword"], .email-col [data-testid="baseButton-secondary"]{
+  width:260px !important;
+}
+
+/* Tabelas */
+.stDataFrame table{ border:1px solid var(--border) !important; }
+.stDataFrame [data-testid="stTable"] thead tr th{ position:sticky; top:0; z-index:2; background:#0F202B; color:var(--text); }
+.stDataFrame tbody tr:nth-child(odd){ background: rgba(255,255,255,0.03); }
+/* BLOCO 02 - FIM */
