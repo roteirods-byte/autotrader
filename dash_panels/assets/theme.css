@@ -1,0 +1,27 @@
+/* BLOCO A3 - INICIO (dash_panels/assets/theme.css) */
+:root{
+  --bg:#0D1B24; --title:#FF8C00; --border:#FFFFFF;
+  --muted:#1B2A34; --text:#E8EEF2;
+}
+
+html, body { background: var(--bg); color: var(--text); }
+.title{ color: var(--title); font-weight:800; font-size:2.2rem; margin: 12px 0; }
+
+.section{
+  color: var(--title); font-weight:800; font-size:1.5rem;
+  border-bottom:2px solid var(--title); padding-bottom:4px; margin: 8px 0 14px 0;
+}
+
+/* Cartão EMAIL com largura fixa 1306 x 160 */
+.email-card{
+  width:1306px; min-height:160px; margin: 0 auto 14px auto;
+  background: var(--muted); border:1px solid var(--border);
+  border-radius:10px; padding:12px 16px;
+}
+
+/* Linha com 4 colunas 260px e gap 40px, alinhadas pela base */
+.email-row{ display:flex; gap:40px; align-items:end; }
+.col{ width:260px; }
+.col input, .btn-260{ width:260px; }
+
+/* BLOCO A3 - FIM */
