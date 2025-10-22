@@ -2,3 +2,4 @@ streamlit
 pandas
 sqlalchemy
 pydantic
+email-validator
