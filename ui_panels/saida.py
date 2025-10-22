@@ -4,7 +4,7 @@ import pandas as pd
 from . import tokens as T
 from .commons import inject_theme_css, page_header, section_title
 
-COLS = ["PARIDADE","LADO","MODO","ENTRADA","ALVO","PREÇO ATUAL","% de PNL","SITUAÇÃO","DADOS","HORA","ALAV","EXCLUIR"]
+COLS = ["PARIDADE","LADO","MODO","ENTRADA","ALVO","PREÇO ATUAL","% de PNL","SITUAÇÃO","DATA","HORA","ALAV","EXCLUIR"]
 
 def init_state():
     if T.SS_SAIDA not in st.session_state:
@@ -15,7 +15,7 @@ def calc_pnl_pct(row):
         entrada = float(row.get("ENTRADA", 0) or 0)
         preco   = float(row.get("PREÇO ATUAL", 0) or 0)
         lado    = row.get("LADO","LONGAS")
-        if entrada == 0:
+        if entrada == 0 or preco == 0:
             return 0.0
         if lado == "LONGAS":
             return (preco/entrada - 1.0) * 100.0
@@ -44,14 +44,16 @@ def render():
     add = st.button("Adicionar Operação")
     if add:
         data, hora = T.today_date_time()
-        new = {
+        new_row = {
             "PARIDADE": par, "LADO": lado, "MODO": modo,
             "ENTRADA": ent, "ALVO": 0.0, "PREÇO ATUAL": 0.0,
-            "% de PNL": 0.0, "SITUAÇÃO": "", "DADOS": data, "HORA": hora,
+            "% de PNL": 0.0, "SITUAÇÃO": "", "DATA": data, "HORA": hora,
             "ALAV": alav, "EXCLUIR": False
         }
-        st.session_state[T.SS_SAIDA] = pd.concat([st.session_state[T.SS_SAIDA], pd.DataFrame([new])], ignore_inde
-x=True)
+        st.session_state[T.SS_SAIDA] = pd.concat(
+            [st.session_state[T.SS_SAIDA], pd.DataFrame([new_row])],
+            ignore_index=True
+        )
 
     df = st.session_state[T.SS_SAIDA].copy()
     df["% de PNL"] = df.apply(calc_pnl_pct, axis=1)
