@@ -2,7 +2,7 @@
 import streamlit as st
 from .tokens import SS_EMAIL
 from . import tokens as T
-from .commons import inject_theme_css, page_header, section_title, email_container_open, container_close
+from .commons import inject_theme_css, page_header, section_title
 
 def init_state():
     if SS_EMAIL not in st.session_state:
@@ -15,17 +15,34 @@ def render():
     init_state()
     cfg = st.session_state[SS_EMAIL]
 
-    email_container_open()
-    c1,c2,c3,c4 = st.columns([3,2,3,2])
-    with c1:
+    # Cartão do EMAIL com 1306x160 e linha de 4 caixas (260px) com gap 40px
+    st.markdown("<div class='email-card'><div class='email-row'>", unsafe_allow_html=True)
+
+    # Coluna 1 — Principal
+    with st.container():
+        st.markdown("<div class='col'>", unsafe_allow_html=True)
         cfg["principal"] = st.text_input("Principal:", value=cfg["principal"], key="email_principal")
-    with c2:
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Coluna 2 — Senha
+    with st.container():
+        st.markdown("<div class='col'>", unsafe_allow_html=True)
         cfg["senha"] = st.text_input("Senha:", value=cfg["senha"], type="password", key="email_senha")
-    with c3:
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Coluna 3 — Envio
+    with st.container():
+        st.markdown("<div class='col'>", unsafe_allow_html=True)
         cfg["envio"] = st.text_input("Envio:", value=cfg["envio"], key="email_envio")
-    with c4:
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Coluna 4 — Botão
+    with st.container():
+        st.markdown("<div class='col'>", unsafe_allow_html=True)
         salvar = st.button("TESTAR/SALVAR", use_container_width=True)
-    container_close()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("</div></div>", unsafe_allow_html=True)
 
     if salvar:
         st.session_state[SS_EMAIL] = cfg
